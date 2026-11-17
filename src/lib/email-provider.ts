@@ -18,6 +18,7 @@ export interface SendEmailInput {
   fromEmail: string
   subject: string
   text: string
+  html?: string // optional HTML part (used for the open-tracking pixel)
 }
 
 export interface DeliveryResult {
@@ -57,6 +58,7 @@ class ResendProvider implements EmailProvider {
           to: [input.to],
           subject: input.subject,
           text: input.text,
+          ...(input.html ? { html: input.html } : {}),
         }),
       }),
       8000
@@ -94,6 +96,7 @@ class SmtpProvider implements EmailProvider {
       to: input.to,
       subject: input.subject,
       text: input.text,
+      ...(input.html ? { html: input.html } : {}),
     })
     return { ok: true, id: info.messageId }
   }

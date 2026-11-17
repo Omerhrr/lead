@@ -145,6 +145,31 @@ export async function generateCampaignCopy(brief: {
   }
 }
 
+// ---------- A/B/C split-test arms — fresh angle for an added variant ----------
+
+// Writes a DIFFERENT angle than the control copy so a new arm is a real test,
+// not a duplicate. Deterministic question-style fallback keeps the flow alive.
+export async function generateVariantAlternative(ctx: {
+  offer: string
+  customerProblem: string
+  language: string
+  controlSubject: string
+  controlBody: string
+}): Promise<{ subject: string; body: string }> {
+  const user = `Offer: ${ctx.offer}\nProblem it solves: ${ctx.customerProblem}\nLanguage: ${ctx.language}\n\nControl subject: """${ctx.controlSubject}"""\nControl body: """${ctx.controlBody}"""\n\nWrite a DIFFERENT angle for the same offer: different hook and opening line, same token rules. Return JSON: {"subject":"...","body":"..."}`
+  const parsed = parseJson<{ subject?: string; body?: string }>(
+    await llm(COPY_SYSTEM, user, 12000)
+  )
+  if (parsed?.subject && parsed?.body) {
+    return { subject: parsed.subject, body: parsed.body }
+  }
+  const subj = ctx.controlSubject.replace(/[.?!]+$/, "")
+  return {
+    subject: `quick question about ${subj}`.slice(0, 80),
+    body: `Hi {{first_name}} — quick question: does {{hook}} at {{company}} cost you deals today?\n\n${ctx.customerProblem} is what we fix, ${ctx.offer.toLowerCase()}\n\nOpen to a 15-minute look?\n\n{{sender_name}}`,
+  }
+}
+
 // ---------- Autopilot reply generation ----------
 
 const AUTOPILOT_SYSTEM = `You are an AI sales autopilot replying to a warm inbound lead for the company described. Reply in under 80 words, human, no headers, no signatures beyond nothing, no markdown. Match the lead's tone. If the stage is "propose_meeting", offer two specific weekday time slots. If the stage is "confirm", confirm the chosen slot warmly and mention sending a calendar invite. If the stage is "answer", answer the lead's question crisply and end with a soft nudge toward a short call.`

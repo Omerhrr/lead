@@ -75,8 +75,20 @@ export interface VariantStat {
   sent: number
   replied: number
   replyRate: number
+  opened: number
+  openRate: number
   hot: number
   booked: number
+}
+
+export interface SplitTestSummary {
+  leader: string | null
+  pValue: number | null
+  significant: boolean
+  eligible: boolean
+  leaderRate: number
+  runnerRate: number
+  minSends: number
 }
 
 export interface DeliveryStatus {
@@ -110,8 +122,10 @@ export interface CampaignDetail {
   copyBody: string | null
   copyWarnings: string[]
   variantTest: boolean
+  autoPromote: boolean
   variants: VariantRow[]
   variantStats: VariantStat[]
+  splitTest: SplitTestSummary | null
   state: string
   sendingNow: boolean
   nextAction: string
@@ -130,6 +144,7 @@ export interface MessageRow {
   subject: string | null
   body: string
   status: string
+  opens: number
   variantId: string | null
   deliveryStatus: string
   createdAt: string

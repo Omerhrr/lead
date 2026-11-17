@@ -136,6 +136,7 @@ model Campaign {
   filters      String? // JSON from nl-to-filters
   // --- A/B split test ---
   variantTest  Boolean @default(false)
+  autoPromote  Boolean @default(false) // promote the statistically-significant winner automatically
   dailyBudgetUsd Float @default(30)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -203,9 +204,11 @@ model Message {
   subject    String?
   body       String
   status     String @default("sent") // sent | opened | bounced
+  opens      Int      @default(0) // open-tracking pixel hits (simulated in demo mode)
+  openedAt   DateTime?
   // A/B + real delivery provenance
   variantId      String? // which copy variant produced this touch
-  deliveryStatus String @default("simulated") // simulated | delivered | failed
+  deliveryStatus String @default("simulated") // pending | simulated | delivered | failed
   provider       String? // resend | smtp (null = simulated)
   createdAt  DateTime @default(now())
   @@index([leadId])

@@ -2,8 +2,12 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
 import { allowedActions } from "@/lib/constants"
+import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
+import { generateVariantAlternative } from "@/lib/ai"
 
 export const dynamic = "force-dynamic"
+
+const MAX_VARIANTS = 4
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
@@ -36,18 +40,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   })
   let variantStats: Array<{
     id: string; label: string; assigned: number; sent: number
-    replied: number; replyRate: number; hot: number; booked: number
+    replied: number; replyRate: number; opened: number; openRate: number
+    hot: number; booked: number
   }> = []
+  const arms: SplitArm[] = []
   if (variantRows.length > 0) {
     const vm = await db.message.findMany({
       where: { campaignId: id, kind: { in: ["touch", "reply"] } },
-      select: { direction: true, leadId: true },
+      select: { direction: true, leadId: true, variantId: true, kind: true, channel: true, opens: true },
     })
     const inboundLeadIds = new Set(vm.filter((m) => m.direction === "in").map((m) => m.leadId))
+    const touches = vm.filter((m) => m.direction === "out" && m.kind === "touch" && m.channel === "email")
     variantStats = variantRows.map((v) => {
       const vLeads = campaign.leads.filter((l) => l.variantId === v.id)
       const sent = vLeads.filter((l) => l.touchCount > 0).length
       const replied = vLeads.filter((l) => inboundLeadIds.has(l.id)).length
+      const vTouches = touches.filter((m) => m.variantId === v.id)
+      const opened = vTouches.filter((m) => m.opens > 0).length
+      arms.push({ id: v.id, label: v.label, sent, replied })
       return {
         id: v.id,
         label: v.label,
@@ -55,11 +65,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         sent,
         replied,
         replyRate: sent > 0 ? replied / sent : 0,
+        opened,
+        openRate: vTouches.length > 0 ? opened / vTouches.length : 0,
         hot: vLeads.filter((l) => l.isHot).length,
         booked: vLeads.filter((l) => l.convStatus === "booked").length,
       }
     })
   }
+  const splitTest = variantRows.length >= 2
+    ? { ...evaluateSplitTest(arms), minSends: AB_MIN_SENDS }
+    : null
 
   return Response.json({
     campaign: {
@@ -68,6 +83,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       allowedActions: allowedActions(campaign.state),
       variants: variantRows.map((v) => ({ id: v.id, label: v.label, subject: v.subject, body: v.body })),
       variantStats,
+      splitTest,
     },
     messages,
   })
@@ -107,6 +123,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.copySubject === "string") updatePayload.copySubject = body.copySubject
   if (typeof body.copyBody === "string") updatePayload.copyBody = body.copyBody
   if (typeof body.variantTest === "boolean") updatePayload.variantTest = body.variantTest
+  if (typeof body.autoPromote === "boolean") updatePayload.autoPromote = body.autoPromote
 
   // numeric casts for prisma
   if (typeof updatePayload.maxTouches === "string") updatePayload.maxTouches = Number(updatePayload.maxTouches)
@@ -115,10 +132,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await db.campaign.update({ where: { id }, data: updatePayload })
 
-  // enabling a split test seeds A/B from the current copy so the test is live instantly
+  // enabling a split test seeds arms from the current copy so the test is
+  // live instantly; a lone leftover arm is topped up with an AI alternative
   if (body.variantTest === true) {
-    const existingVariants = await db.copyVariant.count({ where: { campaignId: id } })
-    if (existingVariants === 0) {
+    const existingVariants = await db.copyVariant.findMany({
+      where: { campaignId: id },
+      orderBy: { label: "asc" },
+    })
+    if (existingVariants.length === 0) {
       const subj = existing.copySubject ?? "Quick question"
       const bod = existing.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`
       await db.copyVariant.createMany({
@@ -126,6 +147,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           { campaignId: id, label: "A", subject: subj, body: bod },
           { campaignId: id, label: "B", subject: subj, body: bod },
         ],
+      })
+    } else if (existingVariants.length === 1) {
+      const only = existingVariants[0]
+      const alt = await generateVariantAlternative({
+        offer: existing.offer,
+        customerProblem: existing.customerProblem,
+        language: existing.language || "English",
+        controlSubject: only.subject,
+        controlBody: only.body,
+      })
+      await db.copyVariant.create({
+        data: { campaignId: id, label: "B", subject: alt.subject, body: alt.body },
       })
     }
   }
@@ -143,6 +176,51 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
       }
     }
+  }
+
+  // multi-arm tests: add a C/D arm with a fresh AI angle (max 4 variants).
+  // Self-healing: with no arms yet, a control A is created first so the added
+  // arm is always a real alternative, never a lone duplicate.
+  if (body.addVariant === true) {
+    let existingVariants = await db.copyVariant.findMany({
+      where: { campaignId: id },
+      orderBy: { label: "asc" },
+    })
+    if (existingVariants.length === 0) {
+      await db.copyVariant.create({
+        data: {
+          campaignId: id,
+          label: "A",
+          subject: existing.copySubject ?? "Quick question",
+          body: existing.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`,
+        },
+      })
+      existingVariants = await db.copyVariant.findMany({
+        where: { campaignId: id },
+        orderBy: { label: "asc" },
+      })
+    }
+    if (existingVariants.length >= MAX_VARIANTS) {
+      return Response.json(
+        { error: `Split tests support up to ${MAX_VARIANTS} variants (A–D)` },
+        { status: 400 }
+      )
+    }
+    const control = existingVariants[0]
+    const maxLabel = Math.max(...existingVariants.map((v) => v.label.charCodeAt(0)))
+    const nextLabel = String.fromCharCode(
+      Math.min(maxLabel + 1, 65 + MAX_VARIANTS - 1)
+    )
+    const alt = await generateVariantAlternative({
+      offer: existing.offer,
+      customerProblem: existing.customerProblem,
+      language: existing.language || "English",
+      controlSubject: control?.subject ?? existing.copySubject ?? "Quick question",
+      controlBody: control?.body ?? existing.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`,
+    })
+    await db.copyVariant.create({
+      data: { campaignId: id, label: nextLabel, subject: alt.subject, body: alt.body },
+    })
   }
 
   if (body.regeneratePool) {

@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
-  FlaskConical, Trophy,
+  FlaskConical, Trophy, Eye, Plus,
 } from "lucide-react"
 import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
 import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
@@ -373,10 +373,71 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   Approved leads are split evenly across variants and keep their variant for the whole
                   sequence. Promote the winner to close the test and make its copy the campaign copy.
                 </p>
+                {campaign.splitTest && campaign.variantTest && (
+                  <p className="mt-1.5 max-w-xl text-xs">
+                    {campaign.splitTest.pValue !== null ? (
+                      <span className={campaign.splitTest.significant ? "font-medium text-emerald-700" : "text-muted-foreground"}>
+                        Leader: {campaign.splitTest.leader} — {Math.round(campaign.splitTest.leaderRate * 100)}% vs{" "}
+                        {Math.round(campaign.splitTest.runnerRate * 100)}% reply rate · p={campaign.splitTest.pValue.toFixed(2)}
+                        {campaign.splitTest.significant ? " · significant — ready to promote" : " · not yet significant"}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Collecting data — every arm needs ≥ {campaign.splitTest.minSends} sends before
+                        the z-test kicks in
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">A/B test</span>
-                <Switch
+              <div className="flex flex-wrap items-center gap-3">
+                {campaign.variantTest && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    disabled={busy !== null || campaign.variants.length >= 4}
+                    onClick={async () => {
+                      setBusy("addVariant")
+                      try {
+                        await patch(`/api/campaigns/${id}`, { addVariant: true })
+                        await load()
+                        toast({ title: `Variant ${String.fromCharCode(65 + campaign.variants.length)} added — AI wrote a fresh angle` })
+                      } catch (e) {
+                        toast({ title: "Could not add variant", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
+                      } finally {
+                        setBusy(null)
+                      }
+                    }}
+                  >
+                    {busy === "addVariant" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Plus className="mr-2 h-3 w-3" />}
+                    Add variant
+                  </Button>
+                )}
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  Auto-promote
+                  <Switch
+                    checked={campaign.autoPromote}
+                    disabled={busy !== null}
+                    onCheckedChange={async (v) => {
+                      setBusy("autoPromote")
+                      try {
+                        await patch(`/api/campaigns/${id}`, { autoPromote: v })
+                        await load()
+                        toast({
+                          title: v
+                            ? "Auto-promote on — the significant winner takes over automatically"
+                            : "Auto-promote off",
+                        })
+                      } finally {
+                        setBusy(null)
+                      }
+                    }}
+                  />
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  A/B test
+                  <Switch
                   checked={campaign.variantTest}
                   disabled={busy !== null}
                   onCheckedChange={async (v) => {
@@ -390,6 +451,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                     }
                   }}
                 />
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -402,6 +464,12 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                     <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
                       Variant {v.label}
                     </Badge>
+                    {campaign.variantTest && campaign.splitTest?.leader === v.label && st && st.sent > 0 && (
+                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                        <Trophy className="mr-1 h-3 w-3" />
+                        leader
+                      </Badge>
+                    )}
                     {campaign.variantTest && st && st.sent > 0 && (
                       <span className="text-xs text-muted-foreground">live in rotation</span>
                     )}
@@ -415,10 +483,11 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {st && (
-                    <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+                    <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-7">
                       {([
                         ["Leads", st.assigned],
                         ["Sent", st.sent],
+                        ["Opens", st.sent > 0 ? `${Math.round(st.openRate * 100)}%` : "—"],
                         ["Replies", st.replied],
                         ["Reply rate", st.sent > 0 ? `${Math.round(st.replyRate * 100)}%` : "—"],
                         ["Hot", st.hot],
@@ -628,7 +697,14 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                             <span className="text-muted-foreground">
                               {" "}· {m.direction === "out" ? (m.kind === "autopilot" ? "autopilot" : `touch ${m.touchIndex}${m.status === "bounced" ? " (bounced)" : ""}`) : "reply"}
                               {m.kind === "touch" && vLabel ? ` · variant ${vLabel}` : ""}
+                              {m.kind === "touch" && m.direction === "out" && m.opens > 0 ? " · opened" : ""}
                             </span>
+                            {m.kind === "touch" && m.direction === "out" && m.opens > 0 && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 align-middle">
+                                <Eye className="h-2.5 w-2.5" />
+                                {m.opens}×
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">{m.body.slice(0, 200)}</div>
                         </div>

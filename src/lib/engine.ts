@@ -12,6 +12,7 @@ import {
   EMAILS_PER_DOMAIN_DAY,
 } from "@/lib/constants"
 import { deliverOutreach, isProviderConfigured } from "@/lib/email-provider"
+import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
 import type { LeadFilters } from "@/lib/ai"
 
 const FOLLOWUP_MS_PER_DAY = 10 * 1000 // 1 campaign day = 10s real time
@@ -45,6 +46,16 @@ function todayStr(d = new Date()) {
 }
 function monthStr(d = new Date()) {
   return d.toISOString().slice(0, 7)
+}
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+function baseUrl() {
+  return process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 }
 
 // ---------------------------------------------------------------- lead pool
@@ -291,7 +302,110 @@ export async function tick(userId: string) {
   for (const campaign of activeCampaigns) {
     await advanceCampaign(campaign, account, pulse)
   }
+
+  // open tracking: demo mode simulates reads; real mode records pixel hits
+  await simulateOpens(projectIds)
+  // split-test auto-promotion: close the test once the winner is significant
+  await autoPromotePass(projectIds)
+
   return { ok: true, ...pulse }
+}
+
+// ------------------------------------------------------------------ opens
+
+// ~66% of leads eventually open (decided per-message by a stable id hash),
+// each tick flips a "will open" message with p=0.3, so reads spread over
+// roughly the first two campaign days instead of landing instantly.
+function willOpen(id: string): boolean {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997
+  return h % 100 < 66
+}
+
+async function simulateOpens(projectIds: string[]) {
+  const campaigns = await db.campaign.findMany({
+    where: { projectId: { in: projectIds } },
+    select: { id: true },
+  })
+  if (campaigns.length === 0) return 0
+  const candidates = await db.message.findMany({
+    where: {
+      campaignId: { in: campaigns.map((c) => c.id) },
+      direction: "out",
+      channel: "email",
+      kind: "touch",
+      status: "sent",
+      opens: 0,
+      createdAt: { lt: new Date(Date.now() - 3000) }, // no instant reads
+    },
+    select: { id: true },
+    take: 300,
+  })
+  const flip = candidates.filter((m) => willOpen(m.id) && Math.random() < 0.3)
+  if (flip.length === 0) return 0
+  await db.message.updateMany({
+    where: { id: { in: flip.map((m) => m.id) } },
+    data: { opens: 1, openedAt: new Date() },
+  })
+  return flip.length
+}
+
+// -------------------------------------------------------- split-test winner
+
+// Per-arm sent/replied using the same semantics as the API stats
+// (sent = leads with >=1 touch; replied = leads with >=1 inbound message).
+async function variantArms(campaignId: string): Promise<SplitArm[]> {
+  const variants = await db.copyVariant.findMany({
+    where: { campaignId },
+    orderBy: { label: "asc" },
+    select: { id: true, label: true },
+  })
+  if (variants.length === 0) return []
+  const leads = await db.lead.findMany({
+    where: { campaignId, variantId: { not: null } },
+    select: { id: true, variantId: true, touchCount: true },
+  })
+  const inbound = await db.message.findMany({
+    where: { campaignId, direction: "in" },
+    select: { leadId: true },
+  })
+  const repliedLeads = new Set(inbound.map((m) => m.leadId))
+  return variants.map((v) => {
+    const sent = leads.filter((l) => l.variantId === v.id && l.touchCount > 0)
+    return {
+      id: v.id,
+      label: v.label,
+      sent: sent.length,
+      replied: sent.filter((l) => repliedLeads.has(l.id)).length,
+    }
+  })
+}
+
+// Auto-promotion: same effect as the manual "Promote winner" button, but the
+// engine closes the test itself once the leading arm beats the runner-up with
+// a two-proportion z-test p < 0.10 and every arm has >= AB_MIN_SENDS sends.
+async function autoPromotePass(projectIds: string[]) {
+  const campaigns = await db.campaign.findMany({
+    where: { projectId: { in: projectIds }, variantTest: true, autoPromote: true },
+    select: { id: true },
+  })
+  for (const c of campaigns) {
+    const result = evaluateSplitTest(await variantArms(c.id))
+    if (!result.significant || !result.leader || result.pValue === null) continue
+    const winner = await db.copyVariant.findFirst({
+      where: { campaignId: c.id, label: result.leader },
+    })
+    if (!winner) continue
+    await db.campaign.update({
+      where: { id: c.id },
+      data: {
+        copySubject: winner.subject,
+        copyBody: winner.body,
+        variantTest: false,
+        nextAction: `Variant ${winner.label} auto-promoted — ${Math.round(result.leaderRate * 100)}% vs ${Math.round(result.runnerRate * 100)}% reply rate (p=${result.pValue.toFixed(2)}), test closed`,
+      },
+    })
+  }
 }
 
 async function campaignCapacity(campaignId: string, projectId: string) {
@@ -400,7 +514,6 @@ async function advanceCampaign(
     for (const g of grouped) if (g.variantId) variantCounts.set(g.variantId, g._count._all)
   }
 
-  const providerLive = isProviderConfigured()
 
   let emails = 0
   let linkedin = 0
@@ -439,40 +552,10 @@ async function advanceCampaign(
       if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way — good luck with ${lead.company}!`
     }
 
-    // real delivery hook (email channel only; simulated when no provider env)
-    let delivery: { deliveryStatus: "simulated" | "delivered" | "failed"; provider: string | null } = {
-      deliveryStatus: "simulated",
-      provider: null,
-    }
-    if (channel === "email") {
-      let fromEmail = campaign.project.companyDomain
-        ? `hello@${campaign.project.companyDomain}`
-        : "hello@autogtm.local"
-      if (providerLive) {
-        const dom = await db.sendingDomain.findFirst({
-          where: { projectId: campaign.projectId, status: "active" },
-          orderBy: { createdAt: "asc" },
-        })
-        if (dom) fromEmail = `hello@${dom.domain}`
-      }
-      delivery = await deliverOutreach({
-        to: lead.email,
-        fromName: campaign.project.senderName,
-        fromEmail,
-        subject,
-        text: body,
-      })
-    }
-    const msgStatus =
-      delivery.deliveryStatus === "delivered"
-        ? "sent"
-        : delivery.deliveryStatus === "failed"
-          ? "bounced"
-          : Math.random() < 0.03
-            ? "bounced"
-            : "sent"
-
-    await db.message.create({
+    // Message row is created first so the open-tracking pixel URL can
+    // reference its id, then real delivery happens and the row is updated.
+    const providerLive = isProviderConfigured()
+    const msg = await db.message.create({
       data: {
         campaignId: campaign.id,
         leadId: lead.id,
@@ -482,12 +565,44 @@ async function advanceCampaign(
         touchIndex,
         subject: channel === "email" ? subject : null,
         body,
-        status: msgStatus,
+        status: "sent", // provisional; finalized below
         variantId: variant?.id ?? null,
-        deliveryStatus: delivery.deliveryStatus,
-        provider: delivery.provider,
+        deliveryStatus: channel === "email" && providerLive ? "pending" : "simulated",
+        provider: null,
       },
     })
+
+    if (channel === "email" && providerLive) {
+      let fromEmail = campaign.project.companyDomain
+        ? `hello@${campaign.project.companyDomain}`
+        : "hello@autogtm.local"
+      const dom = await db.sendingDomain.findFirst({
+        where: { projectId: campaign.projectId, status: "active" },
+        orderBy: { createdAt: "asc" },
+      })
+      if (dom) fromEmail = `hello@${dom.domain}`
+      const delivery = await deliverOutreach({
+        to: lead.email,
+        fromName: campaign.project.senderName,
+        fromEmail,
+        subject,
+        text: body,
+        html:
+          `<div style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55">${escapeHtml(body)}</div>` +
+          `<img src="${baseUrl()}/api/open/${msg.id}" width="1" height="1" alt="" style="display:none" />`,
+      })
+      await db.message.update({
+        where: { id: msg.id },
+        data: {
+          deliveryStatus: delivery.deliveryStatus,
+          provider: delivery.provider,
+          status: delivery.deliveryStatus === "failed" ? "bounced" : "sent",
+        },
+      })
+    } else if (channel === "email" && Math.random() < 0.03) {
+      // simulated bounce in demo mode
+      await db.message.update({ where: { id: msg.id }, data: { status: "bounced" } })
+    }
 
     const nextTouchAt =
       touchIndex < campaign.maxTouches
