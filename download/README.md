@@ -20,13 +20,11 @@ Everything shipped for this project, newest last.
   opened/clicked badges per touch, variant labels, autopilot replies — the
   email funnel end to end (64 touches, 67% opened).
 - `autogtm-round5-tracked-links-pdf.png` — round-5 UI: "Export PDF" next to
-  "Export CSV" in the campaign header and the "Tracked links" card with
-  per-URL click share above the activity feed.
-- `autogtm-tracked-links-card.png` — Activity tab close-up: the "Tracked
-  links" card with the CTA URL, click share bar and live counters
-  (36 clicks · 100% share).
-- `autogtm-export-pdf-header.png` — campaign header actions: Export CSV,
-  Export PDF, Archive.
+  "Export CSV" in the campaign header and the "Tracked links" card with the
+  CTA URL, click share bar and live counters (36 clicks · 100% share).
+- `autogtm-activity-clicked-badges.png` — activity feed mid-scroll: touch rows
+  with variant labels and the tracking badges — emerald "clicked" (per-link
+  CTA tracking) and sky "1×" opened (open pixel) — plus autopilot replies.
 - `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
   (funnel tiles, split-test arms, tracked links, next action).
 - `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.

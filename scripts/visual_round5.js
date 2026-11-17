@@ -42,14 +42,21 @@ async function main() {
   const clickedBadges = (actBody.match(/clicked/g) || []).length
   log("clicked badges:", clickedBadges)
 
-  await page.screenshot({ path: `${OUT}/autogtm-tracked-links-card.png`, fullPage: false })
-  log("screenshot 1 saved")
+  // top view: campaign header actions + tracked links card
+  await page.mouse.move(640, 450)
+  await page.mouse.wheel(0, -5000)
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: `${OUT}/autogtm-round5-tracked-links-pdf.png`, fullPage: false })
+  log("screenshot 1 saved (top view)")
 
-  // scroll up for the header buttons screenshot
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await page.waitForTimeout(500)
-  await page.screenshot({ path: `${OUT}/autogtm-export-pdf-header.png`, fullPage: false })
-  log("screenshot 2 saved")
+  // scroll into the activity feed: touch rows with opened/clicked badges
+  const badges = page.getByText("clicked", { exact: true })
+  const nb = await badges.count()
+  if (nb > 0) await badges.first().scrollIntoViewIfNeeded()
+  log(`clicked badges: ${nb}, scrolled to first`)
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: `${OUT}/autogtm-activity-clicked-badges.png`, fullPage: false })
+  log("screenshot 2 saved (activity feed)")
 
   const okAll = checks.exportPdf && checks.exportCsv && clicksLine && clickedBadges > 0
   console.log(okAll ? "VISUAL-CHECK: PASS" : "VISUAL-CHECK: FAIL")
