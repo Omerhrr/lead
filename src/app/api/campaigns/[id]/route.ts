@@ -41,13 +41,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   let variantStats: Array<{
     id: string; label: string; assigned: number; sent: number
     replied: number; replyRate: number; opened: number; openRate: number
-    hot: number; booked: number
+    clicked: number; clickRate: number; hot: number; booked: number
   }> = []
   const arms: SplitArm[] = []
   if (variantRows.length > 0) {
     const vm = await db.message.findMany({
       where: { campaignId: id, kind: { in: ["touch", "reply"] } },
-      select: { direction: true, leadId: true, variantId: true, kind: true, channel: true, opens: true },
+      select: { direction: true, leadId: true, variantId: true, kind: true, channel: true, opens: true, clicks: true },
     })
     const inboundLeadIds = new Set(vm.filter((m) => m.direction === "in").map((m) => m.leadId))
     const touches = vm.filter((m) => m.direction === "out" && m.kind === "touch" && m.channel === "email")
@@ -57,6 +57,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       const replied = vLeads.filter((l) => inboundLeadIds.has(l.id)).length
       const vTouches = touches.filter((m) => m.variantId === v.id)
       const opened = vTouches.filter((m) => m.opens > 0).length
+      const clicked = vTouches.filter((m) => m.clicks > 0).length
       arms.push({ id: v.id, label: v.label, sent, replied })
       return {
         id: v.id,
@@ -67,6 +68,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         replyRate: sent > 0 ? replied / sent : 0,
         opened,
         openRate: vTouches.length > 0 ? opened / vTouches.length : 0,
+        clicked,
+        clickRate: vTouches.length > 0 ? clicked / vTouches.length : 0,
         hot: vLeads.filter((l) => l.isHot).length,
         booked: vLeads.filter((l) => l.convStatus === "booked").length,
       }
@@ -124,6 +127,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.copyBody === "string") updatePayload.copyBody = body.copyBody
   if (typeof body.variantTest === "boolean") updatePayload.variantTest = body.variantTest
   if (typeof body.autoPromote === "boolean") updatePayload.autoPromote = body.autoPromote
+  if (typeof body.ctaUrl === "string") {
+    const url = body.ctaUrl.trim()
+    // empty clears the link; otherwise only http(s) URLs are accepted
+    updatePayload.ctaUrl = url === "" ? "" : /^https?:\/\/\S+$/i.test(url)
+      ? url
+      : ""
+  }
 
   // numeric casts for prisma
   if (typeof updatePayload.maxTouches === "string") updatePayload.maxTouches = Number(updatePayload.maxTouches)

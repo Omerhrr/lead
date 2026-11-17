@@ -14,6 +14,8 @@ Everything shipped for this project, newest last.
 - `autogtm-multiarm-overview.png` — campaign list + A/B tab after auto-promotion.
 - `autogtm-three-arm-split.png` — live three-way test: A/B/C arms with open
   rates, reply rates, leader badge, add/remove variant, auto-promote toggle.
+- `autogtm-cta-clicks-ab.png` — CTA clicks demo campaign: per-arm stats grid
+  with the Clicks (CTR) column, Export CSV button, tracked CTA link in use.
 - `autogtm-variant-opens-stat.png` — variant card with open-rate stat.
 - `autogtm-activity-opened-badges.png` — activity feed with per-message open badges.
 
@@ -49,6 +51,18 @@ Enhancements shipped on top of the base clone:
   simulation mode reads are modeled instead (~66% eventual open rate, spread
   over the first campaign days). Open rate shows per variant; the Activity
   feed badges opened touches with a 👁 n× chip.
+- **Click tracking (CTR)** — set a tracked CTA link on "My copy" (e.g. a
+  booking page); it is appended to every email touch. Real sends wrap it as
+  `GET /api/click/<messageId>?url=<target>` (302 to the target, per-message
+  click counter); demo mode models clicks as ~40% of opens. Click rate shows
+  as a per-variant tile and clicked touches get a badge in Activity.
+- **Resend webhooks** — `POST /api/webhooks/resend` handles
+  `email.opened` / `email.clicked` / `email.delivered`, mapping events to
+  messages through the stored Resend `email_id` (Svix signature verification
+  when `RESEND_WEBHOOK_SECRET` is set; unsigned accepted in demo mode).
+- **CSV report export** — "Export CSV" in the campaign header downloads a
+  lead-level report (`GET /api/campaigns/<id>/report`): variant attribution,
+  touches, opens, clicks, replied/hot/booked, meeting date, sentiment, hook.
 - **Metering, autopilot, compressed-time engine** — unchanged: $30 trial credit,
   $0.04/email, domain plans, LinkedIn seat billing, agent autopilot with
   meeting booking (1 campaign day ≈ 10 s).
@@ -71,3 +85,21 @@ Enhancements shipped on top of the base clone:
   one tick closed the test and promoted B — `"Variant B auto-promoted — 50%
   vs 20% reply rate (p=0.05), test closed"`.
 - Quality gates: `tsc --noEmit` clean, `eslint src` clean, dev log error-free.
+
+## 4. Verification evidence (round 4)
+
+`scripts/verify_round4.ts` (run with `bun`) — 24/24 assertions pass:
+
+- **Tracked CTA + clicks** — live campaign "Med spas — CTA clicks demo" sent
+  50 email touches embedding the CTA; message counters: 50 sent / 35 opened /
+  17 clicked (demo funnel). Click route returns 302 to the target and
+  incremented clicks 2 -> 3 with `clickedAt`; `javascript:` targets rejected
+  with 400; the campaign copy rejects non-http(s) CTA values.
+- **Per-arm CTR** — with the A/B test enabled on the demo campaign, the stats
+  grid shows Opens 56% / Clicks 22% (A) vs 60% / 20% (B) — screenshot saved.
+- **CSV export** — `text/csv` attachment, header + 32 lead rows for the
+  three-arm campaign with Variant attribution populated on every row.
+- **Resend webhook** — `email.opened` -> opens+1, `email.clicked` -> clicks+1
+  (mapped by Resend `email_id`), unknown event acknowledged as ignored,
+  unknown `email_id` acknowledged as unmatched, missing `email_id` and
+  malformed payloads rejected with 400.

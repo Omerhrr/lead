@@ -140,13 +140,13 @@ export type DeliveryOutcome = "simulated" | "delivered" | "failed"
 
 export async function deliverOutreach(
   input: SendEmailInput
-): Promise<{ deliveryStatus: DeliveryOutcome; provider: string | null }> {
+): Promise<{ deliveryStatus: DeliveryOutcome; provider: string | null; id?: string }> {
   const p = getEmailProvider()
   if (!p) return { deliveryStatus: "simulated", provider: null }
   try {
     const r = await p.send(input)
     return r.ok
-      ? { deliveryStatus: "delivered", provider: p.name }
+      ? { deliveryStatus: "delivered", provider: p.name, id: r.id }
       : { deliveryStatus: "failed", provider: p.name }
   } catch {
     return { deliveryStatus: "failed", provider: p.name }

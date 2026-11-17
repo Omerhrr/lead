@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
-  FlaskConical, Trophy, Eye, Plus, Trash2,
+  FlaskConical, Trophy, Eye, Plus, Trash2, MousePointerClick, Download, Link2,
 } from "lucide-react"
 import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
 import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
@@ -218,6 +218,33 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
           </Badge>
           <div className="min-w-0 flex-1 text-sm text-muted-foreground">{campaign.nextAction}</div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("export")
+                try {
+                  const res = await fetch(`/api/campaigns/${id}/report`, { cache: "no-store" })
+                  if (!res.ok) throw new Error(`Export failed (${res.status})`)
+                  const blob = await res.blob()
+                  const a = document.createElement("a")
+                  a.href = URL.createObjectURL(blob)
+                  a.download = `autogtm-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.csv`
+                  a.click()
+                  URL.revokeObjectURL(a.href)
+                  toast({ title: "Report exported", description: "Lead-level CSV with variants, opens, clicks and outcomes" })
+                } catch (e) {
+                  toast({ title: "Export failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
+                } finally {
+                  setBusy(null)
+                }
+              }}
+            >
+              {busy === "export" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Download className="mr-2 h-3 w-3" />}
+              Export CSV
+            </Button>
             {campaign.allowedActions.includes("approve") && (
               <Button size="sm" className="rounded-full" disabled={pool.length > 0 || busy !== null}
                 onClick={() => act("approve")}>
@@ -345,11 +372,23 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   onChange={(e) => setCampaign({ ...campaign, copyBody: e.target.value })}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cp-cta" className="flex items-center gap-1.5">
+                  <Link2 className="h-3 w-3 text-emerald-600" />
+                  CTA link (tracked — appended to every email touch, clicks measured)
+                </Label>
+                <Input
+                  id="cp-cta"
+                  placeholder="https://cal.com/your-team/demo"
+                  value={campaign.ctaUrl ?? ""}
+                  onChange={(e) => setCampaign({ ...campaign, ctaUrl: e.target.value })}
+                />
+              </div>
               <Button size="sm" className="rounded-full" disabled={busy !== null}
                 onClick={async () => {
                   setBusy("copy")
                   try {
-                    await patch(`/api/campaigns/${id}`, { copySubject: campaign.copySubject, copyBody: campaign.copyBody })
+                    await patch(`/api/campaigns/${id}`, { copySubject: campaign.copySubject, copyBody: campaign.copyBody, ctaUrl: campaign.ctaUrl ?? "" })
                     toast({ title: "Copy saved" })
                   } finally {
                     setBusy(null)
@@ -517,11 +556,12 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {st && (
-                    <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-7">
+                    <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-8">
                       {([
                         ["Leads", st.assigned],
                         ["Sent", st.sent],
                         ["Opens", st.sent > 0 ? `${Math.round(st.openRate * 100)}%` : "—"],
+                        ["Clicks", st.sent > 0 ? `${Math.round(st.clickRate * 100)}%` : "—"],
                         ["Replies", st.replied],
                         ["Reply rate", st.sent > 0 ? `${Math.round(st.replyRate * 100)}%` : "—"],
                         ["Hot", st.hot],
@@ -732,11 +772,18 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                               {" "}· {m.direction === "out" ? (m.kind === "autopilot" ? "autopilot" : `touch ${m.touchIndex}${m.status === "bounced" ? " (bounced)" : ""}`) : "reply"}
                               {m.kind === "touch" && vLabel ? ` · variant ${vLabel}` : ""}
                               {m.kind === "touch" && m.direction === "out" && m.opens > 0 ? " · opened" : ""}
+                            {m.kind === "touch" && m.direction === "out" && m.clicks > 0 ? " · clicked" : ""}
                             </span>
                             {m.kind === "touch" && m.direction === "out" && m.opens > 0 && (
                               <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 align-middle">
                                 <Eye className="h-2.5 w-2.5" />
                                 {m.opens}×
+                              </span>
+                            )}
+                            {m.kind === "touch" && m.direction === "out" && m.clicks > 0 && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 align-middle">
+                                <MousePointerClick className="h-2.5 w-2.5" />
+                                clicked
                               </span>
                             )}
                           </div>

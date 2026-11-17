@@ -137,6 +137,7 @@ model Campaign {
   // --- A/B split test ---
   variantTest  Boolean @default(false)
   autoPromote  Boolean @default(false) // promote the statistically-significant winner automatically
+  ctaUrl       String?  // tracked CTA link appended to email touches (clicks measured per message)
   dailyBudgetUsd Float @default(30)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -206,10 +207,13 @@ model Message {
   status     String @default("sent") // sent | opened | bounced
   opens      Int      @default(0) // open-tracking pixel hits (simulated in demo mode)
   openedAt   DateTime?
+  clicks     Int      @default(0) // tracked CTA link hits (pixel demo mode + real click route/webhook)
+  clickedAt  DateTime?
   // A/B + real delivery provenance
   variantId      String? // which copy variant produced this touch
   deliveryStatus String @default("simulated") // pending | simulated | delivered | failed
   provider       String? // resend | smtp (null = simulated)
+  providerMessageId String? // provider-side id (Resend email_id) for webhook mapping
   createdAt  DateTime @default(now())
   @@index([leadId])
 }

@@ -77,6 +77,8 @@ export interface VariantStat {
   replyRate: number
   opened: number
   openRate: number
+  clicked: number
+  clickRate: number
   hot: number
   booked: number
 }
@@ -121,6 +123,7 @@ export interface CampaignDetail {
   copySubject: string | null
   copyBody: string | null
   copyWarnings: string[]
+  ctaUrl: string | null
   variantTest: boolean
   autoPromote: boolean
   variants: VariantRow[]
@@ -145,6 +148,7 @@ export interface MessageRow {
   body: string
   status: string
   opens: number
+  clicks: number
   variantId: string | null
   deliveryStatus: string
   createdAt: string

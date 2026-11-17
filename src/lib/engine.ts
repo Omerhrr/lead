@@ -343,10 +343,21 @@ async function simulateOpens(projectIds: string[]) {
   })
   const flip = candidates.filter((m) => willOpen(m.id) && Math.random() < 0.3)
   if (flip.length === 0) return 0
-  await db.message.updateMany({
-    where: { id: { in: flip.map((m) => m.id) } },
-    data: { opens: 1, openedAt: new Date() },
-  })
+  // ~40% of opens also click through the tracked CTA link (demo mode)
+  const clicked = flip.filter(() => Math.random() < 0.4)
+  if (clicked.length > 0) {
+    await db.message.updateMany({
+      where: { id: { in: clicked.map((m) => m.id) } },
+      data: { opens: 1, openedAt: new Date(), clicks: 1, clickedAt: new Date() },
+    })
+  }
+  const openOnly = flip.filter((m) => !clicked.includes(m))
+  if (openOnly.length > 0) {
+    await db.message.updateMany({
+      where: { id: { in: openOnly.map((m) => m.id) } },
+      data: { opens: 1, openedAt: new Date() },
+    })
+  }
   return flip.length
 }
 
@@ -416,7 +427,7 @@ async function campaignCapacity(campaignId: string, projectId: string) {
 }
 
 async function advanceCampaign(
-  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string } },
+  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string } },
   account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
   pulse: { sent: number; replies: number; booked: number; spent: number }
 ) {
@@ -551,6 +562,9 @@ async function advanceCampaign(
       body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox — happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
       if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way — good luck with ${lead.company}!`
     }
+    // tracked CTA link — appended to every email touch so clicks are measurable
+    const ctaUrl = campaign.ctaUrl && /^https?:\/\//i.test(campaign.ctaUrl) ? campaign.ctaUrl : null
+    if (channel === "email" && ctaUrl) body += `\n\n${ctaUrl}`
 
     // Message row is created first so the open-tracking pixel URL can
     // reference its id, then real delivery happens and the row is updated.
@@ -581,6 +595,16 @@ async function advanceCampaign(
         orderBy: { createdAt: "asc" },
       })
       if (dom) fromEmail = `hello@${dom.domain}`
+      // HTML part: escaped body with the CTA wrapped in a click-tracker link,
+      // plus the open-tracking beacon.
+      let htmlBody = escapeHtml(body)
+      if (ctaUrl) {
+        const tracked = `${baseUrl()}/api/click/${msg.id}?url=${encodeURIComponent(ctaUrl)}`
+        htmlBody = htmlBody.replaceAll(
+          escapeHtml(ctaUrl),
+          `<a href="${tracked}" style="color:#0d9488">${escapeHtml(ctaUrl)}</a>`
+        )
+      }
       const delivery = await deliverOutreach({
         to: lead.email,
         fromName: campaign.project.senderName,
@@ -588,7 +612,7 @@ async function advanceCampaign(
         subject,
         text: body,
         html:
-          `<div style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55">${escapeHtml(body)}</div>` +
+          `<div style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55">${htmlBody}</div>` +
           `<img src="${baseUrl()}/api/open/${msg.id}" width="1" height="1" alt="" style="display:none" />`,
       })
       await db.message.update({
@@ -596,6 +620,7 @@ async function advanceCampaign(
         data: {
           deliveryStatus: delivery.deliveryStatus,
           provider: delivery.provider,
+          providerMessageId: delivery.id ?? null,
           status: delivery.deliveryStatus === "failed" ? "bounced" : "sent",
         },
       })
