@@ -8,6 +8,12 @@ export const EMAILS_PER_30_USD = Math.round(30 / EMAIL_PRICE_USD) // 750
 export const DOMAIN_PRICE_USD = 12 // platform-bought sending domain (yearly)
 export const MAILBOXES_PER_DOMAIN = 2
 export const EMAILS_PER_DOMAIN_DAY = 40
+// Deliverability warming: every new sending domain ramps its daily volume up
+// step by step (tick-advanced in the demo) until it reaches the full cap.
+export const WARM_START_EMAILS = 10
+export const WARM_STEP_EMAILS = 10
+// Scheduled campaign digest — demo-compressed "week" (real product: 7 days).
+export const REPORT_INTERVAL_MS = Number(process.env.REPORT_INTERVAL_MS || 120_000)
 export const LINKEDIN_SEAT_PRICE_USD = 29
 export const LINKEDIN_TOUCH_PRICE_USD = 0.12
 export const DATABASE_EMAIL_PRICE_PER_1K = 10

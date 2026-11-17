@@ -1,24 +1,52 @@
 "use client"
 
+import { useState } from "react"
 import type { OverviewResponse } from "../api-client"
+import { post } from "../api-client"
 import { money, STATE_LABELS, stateBadgeClass } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useToast } from "@/hooks/use-toast"
 import { UsageAreaChart } from "./usage-chart"
 import {
-  Mail, Flame, CalendarCheck, Reply, TrendingDown, Activity, ArrowRight,
+  Mail, Flame, CalendarCheck, Reply, TrendingDown, Activity, ArrowRight, BarChart3,
 } from "lucide-react"
 
 export function Overview({
   data,
   onOpenCampaign,
   onOpenInbox,
+  onRefresh,
 }: {
   data: OverviewResponse | null
   onOpenCampaign: () => void
   onOpenInbox: () => void
+  onRefresh?: () => Promise<void> | void
 }) {
+  const [digestBusy, setDigestBusy] = useState(false)
+  const { toast } = useToast()
+
+  async function toggleDigest() {
+    if (!data) return
+    const next = data.report.cadence === "weekly" ? "off" : "weekly"
+    setDigestBusy(true)
+    try {
+      await post("/api/overview", { cadence: next })
+      await onRefresh?.()
+      toast({
+        title: next === "weekly" ? "Weekly digest enabled" : "Weekly digest paused",
+        description:
+          next === "weekly"
+            ? "The first digest lands on the next engine tick; later ones follow the demo-compressed week."
+            : "Scheduled digest emails are stopped.",
+      })
+    } catch (e) {
+      toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "destructive" })
+    } finally {
+      setDigestBusy(false)
+    }
+  }
   if (!data) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -170,6 +198,36 @@ export function Overview({
           </CardContent>
         </Card>
       </div>
+
+      {/* scheduled digest */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-4 py-5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <BarChart3 className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">Weekly report digest</div>
+            <div className="text-xs text-muted-foreground">
+              {data.report.cadence === "weekly"
+                ? `On — ${data.report.reportCount} digest${data.report.reportCount === 1 ? "" : "s"} sent${
+                    data.report.lastReportAt
+                      ? ` · last ${new Date(data.report.lastReportAt).toLocaleTimeString()}`
+                      : " · first one fires on the next tick"
+                  }`
+                : "Off — a funnel summary of every campaign, emailed to you weekly"}
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant={data.report.cadence === "weekly" ? "outline" : "default"}
+            className={data.report.cadence === "weekly" ? "rounded-full" : "rounded-full bg-emerald-600 hover:bg-emerald-700"}
+            disabled={digestBusy}
+            onClick={toggleDigest}
+          >
+            {data.report.cadence === "weekly" ? "Pause digest" : "Enable weekly digest"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="flex items-center gap-2 rounded-xl border border-border bg-secondary/50 p-4 text-sm text-muted-foreground">
         <TrendingDown className="h-4 w-4 text-emerald-600" />

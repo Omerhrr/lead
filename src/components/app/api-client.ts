@@ -182,6 +182,12 @@ export interface OverviewResponse {
   hotLeads: Array<{ id: string; name: string; company: string; title: string; score: number; convStatus: string | null; meetingAt: string | null }>
   activity: MessageRow[]
   unread: number
+  report: {
+    cadence: string
+    lastReportAt: string | null
+    reportCount: number
+    nextReportInSec: number | null
+  }
 }
 
 export interface ConversationRow {
@@ -204,6 +210,7 @@ export interface DomainsResponse {
     source: string
     status: string
     emailsPerDay: number
+    warmedDays: number
     mailboxes: number
     createdAt: string
   }>
@@ -213,6 +220,7 @@ export interface DomainsResponse {
     mailboxesPerDomain: number
     domainsNeeded: number
     owned: number
+    warming: number
     ownedCapacity: number
     toBuy: number
     pricePerDomainUsd: number

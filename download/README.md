@@ -25,6 +25,13 @@ Everything shipped for this project, newest last.
 - `autogtm-activity-clicked-badges.png` — activity feed mid-scroll: touch rows
   with variant labels and the tracking badges — emerald "clicked" (per-link
   CTA tracking) and sky "1×" opened (open pixel) — plus autopilot replies.
+- `autogtm-round6-warming.png` — Domains page: newly bought domain entering
+  deliverability warming (amber flame badge, emerald progress bar,
+  "warming day 0 · 10/40 emails/day") next to fully active domains.
+- `autogtm-round6-digest.png` — Overview: "Weekly report digest" card enabled
+  ("On — 7 digests sent · last 11:15 PM") with the Pause digest button.
+- `autogtm-round6-unsubscribe.png` — one-click unsubscribe confirmation page:
+  emerald "Unsubscribed" badge naming the removed address.
 - `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
   (funnel tiles, split-test arms, tracked links, next action).
 - `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.
@@ -154,3 +161,36 @@ re-runnable (reuses the demo campaigns):
   `SuppressEntry(reason="hard bounce")`; `email.complained` updated the
   reason to "spam complaint"; the suppressed lead is excluded from sends.
 - Quality gates: `tsc --noEmit` clean, `eslint src` clean, dev log error-free.
+
+## 6. Verification evidence (round 6)
+
+`scripts/verify_round6.ts` (run with `bun`) — 31/31 assertions pass;
+rounds 3/4/5 suites re-run afterwards — all still pass.
+
+- **One-click unsubscribe (RFC 8058)** — every email touch now carries a
+  per-lead opt-out token: the send path mints it lazily, appends a
+  "One click to opt out" footer to the text/HTML part and mails
+  `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+  headers through the configured provider. The public
+  `/api/unsubscribe/<token>` route accepts GET (human click -> styled emerald
+  confirmation page) and POST (mail-client one-click); both suppress the
+  lead, flip it to unsubscribed and upsert `SuppressEntry(reason="unsubscribe")`
+  on the account. Malformed and unknown tokens 404. The engine's simulated
+  "remove me" replies run the same suppression path. 14 assertions.
+- **Scheduled weekly digest** — per-project cadence (`off` | `weekly`):
+  Overview card toggles it via `POST /api/overview`; the engine tick fires the
+  first digest immediately after enabling (lastReportAt cleared) and then one
+  per demo-compressed week (120s). Each digest emails the account owner a
+  funnel row per campaign (approved/touches/opened/clicked/replies/hot/booked)
+  through the configured provider (simulated in demo mode); `reportCount` and
+  `lastReportAt` surface on the Overview card. Immediate re-ticks don't
+  double-send; invalid cadences are rejected. 9 assertions.
+- **Domain-warming simulator** — new sending domains (platform buy and
+  verified BYOD) start at 10 emails/day and ramp +10 per warming day; one tick
+  advances every warming domain a day, flipping to active at the 40/day cap
+  (10 → 20 → 30 → 40 verified). The engine's send quota counts warming volume
+  (`campaignCapacity` includes warming domains), and the Domains page shows a
+  live progress bar per warming domain plus a "warming" count in the plan
+  stats. 8 assertions.
+- Quality gates re-run: `tsc --noEmit` clean, `eslint src` clean, dev log
+  error-free.

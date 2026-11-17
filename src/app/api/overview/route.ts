@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
 import { EMAIL_PRICE_USD, MEDIAN_CPL_USD } from "@/lib/constants"
@@ -60,6 +61,16 @@ export async function GET() {
 
   const cpl = hotLeads.length > 0 ? usageTotals.spend / hotLeads.length : MEDIAN_CPL_USD
 
+  // scheduled weekly digest state (demo-compressed cadence)
+  const REPORT_INTERVAL_MS = 120_000
+  const lastReportAt = project?.lastReportAt ?? null
+  const nextReportInSec =
+    project?.reportCadence === "weekly"
+      ? lastReportAt
+        ? Math.max(0, Math.round((REPORT_INTERVAL_MS - (Date.now() - lastReportAt.getTime())) / 1000))
+        : 0
+      : null
+
   return Response.json({
     campaigns,
     stats: {
@@ -87,5 +98,33 @@ export async function GET() {
     hotLeads: hotLeads.slice(0, 6),
     activity,
     unread,
+    report: {
+      cadence: project?.reportCadence ?? "off",
+      lastReportAt: lastReportAt ? lastReportAt.toISOString() : null,
+      reportCount: project?.reportCount ?? 0,
+      nextReportInSec,
+    },
   })
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getSessionUser()
+  if (!user) return unauthorized()
+  const body = await req.json().catch(() => null)
+  const cadence = String(body?.cadence ?? "")
+  if (cadence !== "off" && cadence !== "weekly") {
+    return Response.json({ error: "cadence must be off or weekly" }, { status: 400 })
+  }
+  const project = await db.project.findFirst({ where: { userId: user.id } })
+  if (!project) return Response.json({ error: "No project" }, { status: 400 })
+  // switching to weekly clears lastReportAt so the first digest fires on the
+  // next tick; switching off stops the schedule
+  await db.project.update({
+    where: { id: project.id },
+    data: {
+      reportCadence: cadence,
+      ...(cadence === "weekly" ? { lastReportAt: null } : {}),
+    },
+  })
+  return Response.json({ ok: true, cadence })
 }

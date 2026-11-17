@@ -6,6 +6,7 @@ import {
   EMAILS_PER_DOMAIN_DAY,
   MAILBOXES_PER_DOMAIN,
   EMAIL_PRICE_USD,
+  WARM_START_EMAILS,
 } from "@/lib/constants"
 
 export const dynamic = "force-dynamic"
@@ -28,9 +29,12 @@ export async function GET() {
     0
   )
   const activeDomains = project.sendingDomains.filter((d) => d.status === "active")
-  const ownedCapacity = activeDomains.reduce((sum, d) => sum + d.emailsPerDay, 0)
+  const warmingDomains = project.sendingDomains.filter((d) => d.status === "warming")
+  // what the engine can send per tick: active domains at full cap, warming at
+  // their current ramped volume
+  const ownedCapacity = [...activeDomains, ...warmingDomains].reduce((sum, d) => sum + d.emailsPerDay, 0)
   const domainsNeeded = Math.ceil(targetEmailsPerDay / EMAILS_PER_DOMAIN_DAY)
-  const toBuy = Math.max(0, domainsNeeded - activeDomains.length)
+  const toBuy = Math.max(0, domainsNeeded - activeDomains.length - warmingDomains.length)
 
   return Response.json({
     domains: project.sendingDomains.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
@@ -40,6 +44,7 @@ export async function GET() {
       mailboxesPerDomain: MAILBOXES_PER_DOMAIN,
       domainsNeeded,
       owned: activeDomains.length,
+      warming: warmingDomains.length,
       ownedCapacity,
       toBuy,
       pricePerDomainUsd: DOMAIN_PRICE_USD,
@@ -74,6 +79,7 @@ export async function POST(req: NextRequest) {
       source: string
       status: string
       emailsPerDay: number
+      warmedDays: number
       mailboxes: number
     }> = []
     for (let i = 0; i < count; i++) {
@@ -83,8 +89,10 @@ export async function POST(req: NextRequest) {
         projectId: project.id,
         domain,
         source: "platform",
-        status: "active",
-        emailsPerDay: EMAILS_PER_DOMAIN_DAY,
+        // deliverability warming: new domains ramp volume up day by day
+        status: "warming",
+        emailsPerDay: WARM_START_EMAILS,
+        warmedDays: 0,
         mailboxes: MAILBOXES_PER_DOMAIN,
       })
     }
@@ -132,9 +140,10 @@ export async function POST(req: NextRequest) {
     if (!record || record.projectId !== project.id) {
       return Response.json({ error: "Not found" }, { status: 404 })
     }
+    // DNS verified -> starts deliverability warming (ramps to active via ticks)
     await db.sendingDomain.update({
       where: { id: domainId },
-      data: { status: "active" },
+      data: { status: "warming", emailsPerDay: WARM_START_EMAILS, warmedDays: 0 },
     })
     return Response.json({ ok: true })
   }

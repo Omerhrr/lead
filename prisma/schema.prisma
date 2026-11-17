@@ -77,6 +77,10 @@ model Project {
   companyName   String
   senderName    String
   senderTitle   String   @default("Founder")
+  // scheduled report digest ("off" | "weekly", demo-compressed week)
+  reportCadence String   @default("off")
+  lastReportAt  DateTime?
+  reportCount   Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   campaigns     Campaign[]
@@ -90,7 +94,8 @@ model SendingDomain {
   domain      String
   source      String   @default("platform") // platform | byod
   status      String   @default("warming")  // active | warming | pending_dns
-  emailsPerDay Int     @default(40)
+  emailsPerDay Int     @default(10) // warming ramp: starts low, steps up daily
+  warmedDays  Int      @default(0)  // completed warming days (tick-advanced)
   mailboxes   Int      @default(2)
   createdAt   DateTime @default(now())
 }
@@ -188,6 +193,7 @@ model Lead {
   replyChannel String? // email|linkedin for the pending reply
   meetingAt   DateTime?
   variantId   String? // A/B split test assignment
+  unsubToken  String?  @unique // one-click unsubscribe token (mailed in List-Unsubscribe)
   createdAt   DateTime @default(now())
   messages    Message[]
   @@index([campaignId, status])

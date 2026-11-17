@@ -3,6 +3,7 @@
 // sends → autopilot replies → booked meetings, with credit metering.
 // Time is compressed: one 4s tick ~= a working chunk of a campaign day.
 
+import { randomBytes } from "crypto"
 import { db } from "@/lib/db"
 import { autopilotReply } from "@/lib/ai"
 import {
@@ -10,8 +11,12 @@ import {
   LINKEDIN_TOUCH_PRICE_USD,
   LINKEDIN_SEAT_PRICE_USD,
   EMAILS_PER_DOMAIN_DAY,
+  WARM_START_EMAILS,
+  WARM_STEP_EMAILS,
+  REPORT_INTERVAL_MS,
 } from "@/lib/constants"
 import { deliverOutreach, isProviderConfigured } from "@/lib/email-provider"
+import { suppressLeadOptOut } from "@/lib/unsubscribe"
 import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
 import type { LeadFilters } from "@/lib/ai"
 
@@ -307,8 +312,101 @@ export async function tick(userId: string) {
   await simulateOpens(projectIds)
   // split-test auto-promotion: close the test once the winner is significant
   await autoPromotePass(projectIds)
+  // deliverability warming: ramp each warming domain one day per tick
+  await warmDomainsPass(projectIds)
+  // scheduled weekly digest emails (demo-compressed cadence)
+  await scheduledReportsPass(userId)
 
   return { ok: true, ...pulse }
+}
+
+// ------------------------------------------------ domain warming
+
+// One tick advances every warming domain by one "warming day": the daily
+// volume steps WARM_START -> +STEP per day until it reaches the full cap,
+// then the domain flips to active (mirrors real inbox-warming practice).
+async function warmDomainsPass(projectIds: string[]) {
+  const warming = await db.sendingDomain.findMany({
+    where: { projectId: { in: projectIds }, status: "warming" },
+  })
+  for (const d of warming) {
+    const warmedDays = d.warmedDays + 1
+    const emailsPerDay = Math.min(
+      EMAILS_PER_DOMAIN_DAY,
+      WARM_START_EMAILS + warmedDays * WARM_STEP_EMAILS
+    )
+    await db.sendingDomain.update({
+      where: { id: d.id },
+      data: {
+        warmedDays,
+        emailsPerDay,
+        status: emailsPerDay >= EMAILS_PER_DOMAIN_DAY ? "active" : "warming",
+      },
+    })
+  }
+  return warming.length
+}
+
+// ------------------------------------------------ scheduled reports
+
+// Weekly digest per project ("reportCadence: weekly"): one funnel row per
+// campaign, emailed to the account owner through the configured provider
+// (simulated in demo mode). The cadence is demo-compressed: REPORT_INTERVAL_MS
+// stands in for a real week; the first digest fires on the next tick.
+async function scheduledReportsPass(userId: string) {
+  const projects = await db.project.findMany({
+    where: { userId, reportCadence: "weekly" },
+    include: { user: { select: { email: true } }, campaigns: { orderBy: { createdAt: "asc" } } },
+  })
+  const now = Date.now()
+  for (const project of projects) {
+    if (project.lastReportAt && now - project.lastReportAt.getTime() < REPORT_INTERVAL_MS) continue
+    const lines: string[] = [
+      `AutoGTM weekly digest — ${project.companyName}`,
+      `Generated ${new Date().toISOString().slice(0, 10)} · demo-compressed week`,
+      "",
+    ]
+    let touched = 0
+    for (const c of project.campaigns) {
+      if (c.state === "archived" || c.state === "draft") continue
+      const [leads, touches, inbound] = await Promise.all([
+        db.lead.findMany({
+          where: { campaignId: c.id },
+          select: { id: true, status: true, isHot: true, convStatus: true },
+        }),
+        db.message.findMany({
+          where: { campaignId: c.id, direction: "out", kind: "touch", channel: "email" },
+          select: { opens: true, clicks: true },
+        }),
+        db.message.findMany({ where: { campaignId: c.id, direction: "in" }, select: { leadId: true } }),
+      ])
+      const approved = leads.filter((l) => l.status === "approved").length
+      const repliedIds = new Set(inbound.map((m) => m.leadId))
+      const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—")
+      lines.push(
+        `${c.name} (${c.state}): ${approved} approved · ${touches.length} touches · ` +
+          `${pct(touches.filter((m) => m.opens > 0).length, touches.length)} opened · ` +
+          `${pct(touches.filter((m) => m.clicks > 0).length, touches.length)} clicked · ` +
+          `${leads.filter((l) => repliedIds.has(l.id)).length} replies · ` +
+          `${leads.filter((l) => l.isHot).length} hot · ` +
+          `${leads.filter((l) => l.convStatus === "booked").length} booked`
+      )
+      touched++
+    }
+    if (touched === 0) continue
+    lines.push("", "— AutoGTM (opens by pixel, clicks by tracked links, opt-outs auto-suppressed)")
+    await deliverOutreach({
+      to: project.user.email,
+      fromName: "AutoGTM reports",
+      fromEmail: `reports@${project.companyDomain || "autogtm.local"}`,
+      subject: `AutoGTM weekly digest — ${project.companyName}`,
+      text: lines.join("\n"),
+    })
+    await db.project.update({
+      where: { id: project.id },
+      data: { lastReportAt: new Date(), reportCount: { increment: 1 } },
+    })
+  }
 }
 
 // ------------------------------------------------------------------ opens
@@ -431,14 +529,16 @@ async function autoPromotePass(projectIds: string[]) {
 }
 
 async function campaignCapacity(campaignId: string, projectId: string) {
+  // warming domains send at their reduced (ramping) volume, active at full cap
   const domains = await db.sendingDomain.findMany({
-    where: { projectId, status: "active" },
+    where: { projectId, status: { in: ["active", "warming"] } },
   })
+  void campaignId
   return domains.reduce((sum, d) => sum + d.emailsPerDay, 0)
 }
 
 async function advanceCampaign(
-  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string } },
+  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string; userId: string } },
   account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
   pulse: { sent: number; replies: number; booked: number; spent: number }
 ) {
@@ -577,6 +677,19 @@ async function advanceCampaign(
     const ctaUrl = campaign.ctaUrl && /^https?:\/\//i.test(campaign.ctaUrl) ? campaign.ctaUrl : null
     if (channel === "email" && ctaUrl) body += `\n\n${ctaUrl}`
 
+    // one-click unsubscribe token (RFC 8058) — created lazily per lead, mailed
+    // in the List-Unsubscribe headers + opt-out footer of every email touch
+    let unsubUrl: string | null = null
+    if (channel === "email") {
+      let token = lead.unsubToken
+      if (!token) {
+        token = randomBytes(16).toString("hex")
+        await db.lead.update({ where: { id: lead.id }, data: { unsubToken: token } })
+      }
+      unsubUrl = `${baseUrl()}/api/unsubscribe/${token}`
+      body += `\n\nNot relevant? One click to opt out: ${unsubUrl}`
+    }
+
     // Message row is created first so the open-tracking pixel URL can
     // reference its id, then real delivery happens and the row is updated.
     const providerLive = isProviderConfigured()
@@ -601,13 +714,18 @@ async function advanceCampaign(
       let fromEmail = campaign.project.companyDomain
         ? `hello@${campaign.project.companyDomain}`
         : "hello@autogtm.local"
-      const dom = await db.sendingDomain.findFirst({
-        where: { projectId: campaign.projectId, status: "active" },
-        orderBy: { createdAt: "asc" },
-      })
+      const dom =
+        (await db.sendingDomain.findFirst({
+          where: { projectId: campaign.projectId, status: "active" },
+          orderBy: { createdAt: "asc" },
+        })) ??
+        (await db.sendingDomain.findFirst({
+          where: { projectId: campaign.projectId, status: "warming" },
+          orderBy: { createdAt: "asc" },
+        }))
       if (dom) fromEmail = `hello@${dom.domain}`
       // HTML part: escaped body with the CTA wrapped in a click-tracker link,
-      // plus the open-tracking beacon.
+      // an opt-out footer link, plus the open-tracking beacon.
       let htmlBody = escapeHtml(body)
       if (ctaUrl) {
         const tracked = `${baseUrl()}/api/click/${msg.id}?url=${encodeURIComponent(ctaUrl)}`
@@ -616,12 +734,24 @@ async function advanceCampaign(
           `<a href="${tracked}" style="color:#0d9488">${escapeHtml(ctaUrl)}</a>`
         )
       }
+      if (unsubUrl) {
+        htmlBody = htmlBody.replaceAll(
+          escapeHtml(unsubUrl),
+          `<a href="${unsubUrl}" style="color:#94a3b8">${escapeHtml(unsubUrl)}</a>`
+        )
+      }
       const delivery = await deliverOutreach({
         to: lead.email,
         fromName: campaign.project.senderName,
         fromEmail,
         subject,
         text: body,
+        headers: unsubUrl
+          ? {
+              "List-Unsubscribe": `<${unsubUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            }
+          : undefined,
         html:
           `<div style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55">${htmlBody}</div>` +
           `<img src="${baseUrl()}/api/open/${msg.id}" width="1" height="1" alt="" style="display:none" />`,
@@ -728,8 +858,8 @@ async function advanceCampaign(
 // -------------------------------------------------------- inbound processing
 
 async function processInbound(
-  campaign: { id: string; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number },
-  lead: { id: string; name: string; company: string; convStatus: string | null; replyChannel: string | null },
+  campaign: { id: string; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; project: { userId: string } },
+  lead: { id: string; name: string; company: string; email: string; convStatus: string | null; replyChannel: string | null },
   account: { id: string }
 ) {
   const now = new Date()
@@ -785,6 +915,8 @@ async function processInbound(
     case "unsubscribe":
       updates.convStatus = "unsubscribed"
       updates.status = "suppressed"
+      // reply-based opt-out syncs to the account-wide suppression list too
+      await suppressLeadOptOut(lead.id, lead.email, campaign.project.userId)
       break
     case "negotiating":
       // lead accepted the meeting

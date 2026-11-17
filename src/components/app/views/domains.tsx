@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { Globe, Plus, RefreshCcw, ShieldCheck, ShoppingCart } from "lucide-react"
+import { Globe, Flame, Plus, RefreshCcw, ShieldCheck, ShoppingCart } from "lucide-react"
 import { api, post, type DomainsResponse } from "../api-client"
 import { money } from "@/lib/constants"
 
@@ -66,7 +66,11 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
           <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <PlanStat label="Target emails/day" value={plan.targetEmailsPerDay.toLocaleString()} />
             <PlanStat label="Domains needed" value={String(plan.domainsNeeded)} />
-            <PlanStat label="Owned (active)" value={String(plan.owned)} sub={`${plan.ownedCapacity}/day capacity`} />
+            <PlanStat
+              label="Owned (active)"
+              value={String(plan.owned)}
+              sub={`${plan.ownedCapacity}/day capacity${plan.warming > 0 ? ` · ${plan.warming} warming` : ""}`}
+            />
             <PlanStat
               label="To buy"
               value={String(plan.toBuy)}
@@ -150,6 +154,19 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
                 <div className="text-xs text-muted-foreground">
                   {d.mailboxes} mailboxes · {d.emailsPerDay} emails/day · {d.source === "byod" ? "your domain" : "platform-bought"}
                 </div>
+                {d.status === "warming" && (
+                  <div className="mt-2 flex max-w-md items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all"
+                        style={{ width: `${Math.min(100, Math.round((d.emailsPerDay / plan.emailsPerDomainDay) * 100))}%` }}
+                      />
+                    </div>
+                    <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                      warming day {d.warmedDays} · {d.emailsPerDay}/{plan.emailsPerDomainDay} emails/day
+                    </span>
+                  </div>
+                )}
               </div>
               {d.status === "active" ? (
                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
@@ -158,6 +175,7 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
               ) : (
                 <>
                   <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                    <Flame className="mr-1 h-3 w-3" />
                     {d.status === "pending_dns" ? "pending DNS" : "warming"}
                   </Badge>
                   {d.source === "byod" && (

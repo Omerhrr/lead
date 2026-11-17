@@ -19,6 +19,7 @@ export interface SendEmailInput {
   subject: string
   text: string
   html?: string // optional HTML part (used for the open-tracking pixel)
+  headers?: Record<string, string> // extra RFC headers (List-Unsubscribe etc.)
 }
 
 export interface DeliveryResult {
@@ -59,6 +60,7 @@ class ResendProvider implements EmailProvider {
           subject: input.subject,
           text: input.text,
           ...(input.html ? { html: input.html } : {}),
+          ...(input.headers && Object.keys(input.headers).length > 0 ? { headers: input.headers } : {}),
         }),
       }),
       8000
@@ -97,6 +99,7 @@ class SmtpProvider implements EmailProvider {
       subject: input.subject,
       text: input.text,
       ...(input.html ? { html: input.html } : {}),
+      ...(input.headers && Object.keys(input.headers).length > 0 ? { headers: input.headers } : {}),
     })
     return { ok: true, id: info.messageId }
   }

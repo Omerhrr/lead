@@ -220,7 +220,7 @@ export function Dashboard({
                 }}
               />
             ) : view === "overview" ? (
-              <Overview data={overview} onOpenCampaign={() => setView("campaigns")} onOpenInbox={() => setView("inbox")} />
+              <Overview data={overview} onOpenCampaign={() => setView("campaigns")} onOpenInbox={() => setView("inbox")} onRefresh={refreshOverview} />
             ) : view === "campaigns" ? (
               <CampaignsView onChanged={refreshOverview} />
             ) : view === "inbox" ? (
