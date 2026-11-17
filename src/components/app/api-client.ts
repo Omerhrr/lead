@@ -129,6 +129,7 @@ export interface CampaignDetail {
   variants: VariantRow[]
   variantStats: VariantStat[]
   splitTest: SplitTestSummary | null
+  topLinks: Array<{ url: string; clicks: number }>
   state: string
   sendingNow: boolean
   nextAction: string

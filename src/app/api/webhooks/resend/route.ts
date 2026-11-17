@@ -8,9 +8,13 @@ export const dynamic = "force-dynamic"
 // real sends. Set RESEND_WEBHOOK_SECRET (Svix "whsec_..." signing secret) in
 // production; without it the route accepts unsigned events (demo mode).
 // Handled events:
-//   email.opened   -> message.opens +1, openedAt stamped
-//   email.clicked  -> message.clicks +1, clickedAt stamped
-//   email.delivered-> flips a pending message to delivered
+//   email.opened    -> message.opens +1, openedAt stamped
+//   email.clicked   -> message.clicks +1, clickedAt stamped, ClickEvent row
+//                      (per-link breakdown) with the clicked link
+//   email.delivered -> flips a pending message to delivered
+//   email.bounced   -> message bounced + lead suppressed + SuppressEntry
+//                      (reason "hard bounce") so the engine never mails again
+//   email.complained-> lead suppressed + SuppressEntry (reason "spam complaint")
 // Events map to a message row through Message.providerMessageId, which the
 // engine stores from the Resend send response.
 
@@ -42,7 +46,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Invalid webhook signature" }, { status: 401 })
   }
 
-  let payload: { type?: string; data?: { email_id?: string; click?: { link?: string } } } | null
+  let payload: {
+    type?: string
+    data?: { email_id?: string; click?: { link?: string } }
+  } | null
   try {
     payload = JSON.parse(raw)
   } catch {
@@ -59,11 +66,35 @@ export async function POST(req: NextRequest) {
 
   const msg = await db.message.findFirst({
     where: { providerMessageId: emailId },
-    select: { id: true, direction: true },
+    select: {
+      id: true, direction: true, campaignId: true, leadId: true,
+      lead: { select: { email: true } },
+    },
   })
   if (!msg || msg.direction !== "out") {
     // unknown id: acknowledge so Resend stops retrying
     return Response.json({ ok: true, matched: false })
+  }
+  const owner = await db.campaign.findUnique({
+    where: { id: msg.campaignId },
+    select: { project: { select: { userId: true } } },
+  })
+
+  // bounce/complaint suppression: stop all future mail to this person and
+  // record why on the account-wide suppression list
+  const suppressLead = async (reason: string) => {
+    await db.lead.updateMany({
+      where: { id: msg.leadId, status: { not: "suppressed" } },
+      data: { status: "suppressed" },
+    })
+    const email = msg.lead.email.toLowerCase()
+    if (email) {
+      await db.suppressEntry.upsert({
+        where: { userId_type_value: { userId: owner!.project.userId, type: "person", value: email } },
+        create: { userId: owner!.project.userId, type: "person", value: email, reason },
+        update: { reason },
+      })
+    }
   }
 
   switch (payload.type) {
@@ -73,17 +104,32 @@ export async function POST(req: NextRequest) {
         data: { opens: { increment: 1 }, openedAt: new Date() },
       })
       break
-    case "email.clicked":
+    case "email.clicked": {
+      const link = typeof payload.data?.click?.link === "string" ? payload.data.click.link : "unknown"
       await db.message.update({
         where: { id: msg.id },
         data: { clicks: { increment: 1 }, clickedAt: new Date() },
       })
+      await db.clickEvent.create({
+        data: { messageId: msg.id, campaignId: msg.campaignId, url: link.slice(0, 2000) },
+      })
       break
+    }
     case "email.delivered":
       await db.message.updateMany({
         where: { id: msg.id, deliveryStatus: "pending" },
         data: { deliveryStatus: "delivered" },
       })
+      break
+    case "email.bounced":
+      await db.message.update({
+        where: { id: msg.id },
+        data: { status: "bounced", deliveryStatus: "failed" },
+      })
+      await suppressLead("hard bounce")
+      break
+    case "email.complained":
+      await suppressLead("spam complaint")
       break
     default:
       return Response.json({ ok: true, ignored: payload.type })

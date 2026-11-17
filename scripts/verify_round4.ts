@@ -148,8 +148,10 @@ async function main() {
   const r2 = await wh({ type: "email.clicked", data: { email_id: "re_fixture_round4", click: { link: CTA } } })
   const m2 = (await db.message.findUnique({ where: { id: fx.id } }))!
   ok(r2.status === 200 && m2.clicks === 1 && !!m2.clickedAt, "email.clicked -> clicks+1")
-  const r3 = await wh({ type: "email.bounced", data: { email_id: "re_fixture_round4" } })
-  ok(r3.status === 200 && (await r3.json()).ignored === "email.bounced", "unknown event ignored")
+  // email.bounced is handled since round 5 (suppression sync) — use an
+  // event type outside the handled set to assert the ignore path
+  const r3 = await wh({ type: "email.delivery_delayed", data: { email_id: "re_fixture_round4" } })
+  ok(r3.status === 200 && (await r3.json()).ignored === "email.delivery_delayed", "unhandled event ignored")
   const r4 = await wh({ type: "email.opened", data: { email_id: "re_unknown" } })
   ok(r4.status === 200 && (await r4.json()).matched === false, "unknown email_id acknowledged")
   const r5 = await post("/api/webhooks/resend", { type: "email.opened" })

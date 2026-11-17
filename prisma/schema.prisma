@@ -214,8 +214,22 @@ model Message {
   deliveryStatus String @default("simulated") // pending | simulated | delivered | failed
   provider       String? // resend | smtp (null = simulated)
   providerMessageId String? // provider-side id (Resend email_id) for webhook mapping
+  clickEvents ClickEvent[]
   createdAt  DateTime @default(now())
   @@index([leadId])
+}
+
+// One row per tracked-link hit (real click route, Resend webhook, or demo
+// simulation). Enables the per-link CTR breakdown on the campaign page.
+model ClickEvent {
+  id         String   @id @default(cuid())
+  messageId  String
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  campaignId String
+  url        String
+  createdAt  DateTime @default(now())
+  @@index([campaignId, url])
+  @@index([messageId])
 }
 
 model SuppressEntry {
@@ -224,6 +238,7 @@ model SuppressEntry {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type     String // person | company | domain
   value    String
+  reason   String? // hard bounce | spam complaint | unsubscribe | manual
   createdAt DateTime @default(now())
   @@unique([userId, type, value])
 }

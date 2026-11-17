@@ -19,6 +19,12 @@ Everything shipped for this project, newest last.
 - `autogtm-cta-clicks-ab.png` — full activity feed of the CTA demo campaign:
   opened/clicked badges per touch, variant labels, autopilot replies — the
   email funnel end to end (64 touches, 67% opened, 31% clicked).
+- `autogtm-round5-tracked-links-pdf.png` — round-5 UI: "Export PDF" next to
+  "Export CSV" in the campaign header and the "Tracked links" card with
+  per-URL click share above the activity feed.
+- `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
+  (funnel tiles, split-test arms, tracked links, next action).
+- `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.
 - `autogtm-variant-opens-stat.png` — variant card with open-rate stat.
 - `autogtm-activity-opened-badges.png` — activity feed with per-message open badges.
 
@@ -59,13 +65,26 @@ Enhancements shipped on top of the base clone:
   `GET /api/click/<messageId>?url=<target>` (302 to the target, per-message
   click counter); demo mode models clicks as ~40% of opens. Click rate shows
   as a per-variant tile and clicked touches get a badge in Activity.
+- **Per-link breakdown** — every hit (click route, webhook, demo sim) writes a
+  `ClickEvent` row (message, campaign, URL). The Activity tab shows a
+  "Tracked links" card with clicks + share per URL; `topLinks` ships in the
+  campaign API.
 - **Resend webhooks** — `POST /api/webhooks/resend` handles
-  `email.opened` / `email.clicked` / `email.delivered`, mapping events to
-  messages through the stored Resend `email_id` (Svix signature verification
-  when `RESEND_WEBHOOK_SECRET` is set; unsigned accepted in demo mode).
+  `email.opened` / `email.clicked` / `email.delivered` / `email.bounced` /
+  `email.complained`, mapping events to messages through the stored Resend
+  `email_id` (Svix signature verification when `RESEND_WEBHOOK_SECRET` is
+  set; unsigned accepted in demo mode).
+- **Bounce + complaint suppression** — a bounced or complained event flips
+  the message to bounced/failed, suppresses the lead (engine stops mailing
+  them) and upserts an account-wide `SuppressEntry` with the reason
+  ("hard bounce" / "spam complaint"), so future lead pools exclude them.
 - **CSV report export** — "Export CSV" in the campaign header downloads a
   lead-level report (`GET /api/campaigns/<id>/report`): variant attribution,
   touches, opens, clicks, replied/hot/booked, meeting date, sentiment, hook.
+- **PDF summary report** — "Export PDF" (`GET /api/campaigns/<id>/report-pdf`,
+  pdfkit) renders a one-page report: funnel tiles (leads, touches, open %,
+  click %, replies, hot, booked), the split-test arms table, tracked links
+  with click counts, and the campaign's next action.
 - **Metering, autopilot, compressed-time engine** — unchanged: $30 trial credit,
   $0.04/email, domain plans, LinkedIn seat billing, agent autopilot with
   meeting booking (1 campaign day ≈ 10 s).
@@ -110,3 +129,25 @@ re-runnable (reuses the demo campaigns):
   (mapped by Resend `email_id`), unknown event acknowledged as ignored,
   unknown `email_id` acknowledged as unmatched, missing `email_id` and
   malformed payloads rejected with 400.
+
+## 5. Verification evidence (round 5)
+
+`scripts/verify_round5.ts` (run with `bun`) — 21/21 assertions pass;
+`verify_round4.ts` re-run after the webhook change — 22/22 still pass.
+
+- **Per-link breakdown** — a click-route hit wrote a `ClickEvent` with the
+  target URL; a webhook `email.clicked` with a distinct deep link wrote its
+  own row; the campaign API aggregates `topLinks` by URL (CTA at 30+ clicks,
+  deep link 1). The Activity tab renders the "Tracked links" card with
+  per-URL share bars (screenshot). Historical demo clicks were backfilled
+  into `ClickEvent` rows so message counters and the breakdown agree.
+- **PDF summary report** — `GET /api/campaigns/<id>/report-pdf` returns
+  `application/pdf` (3340 bytes, %PDF magic, attachment filename); without a
+  session it 401s. The rendered page shows the funnel tiles, split-test arms
+  table, tracked links and next action (sample saved as
+  `autogtm-campaign-report-sample.pdf`).
+- **Bounce + complaint suppression** — webhook `email.bounced` on a fixture
+  message flipped it to bounced/failed, suppressed the lead and upserted
+  `SuppressEntry(reason="hard bounce")`; `email.complained` updated the
+  reason to "spam complaint"; the suppressed lead is excluded from sends.
+- Quality gates: `tsc --noEmit` clean, `eslint src` clean, dev log error-free.

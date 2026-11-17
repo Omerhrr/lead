@@ -24,12 +24,16 @@ export async function GET(
   try {
     const msg = await db.message.findUnique({
       where: { id },
-      select: { direction: true },
+      select: { direction: true, campaignId: true },
     })
     if (msg && msg.direction === "out") {
       await db.message.update({
         where: { id },
         data: { clicks: { increment: 1 }, clickedAt: new Date() },
+      })
+      // per-link breakdown row
+      await db.clickEvent.create({
+        data: { messageId: id, campaignId: msg.campaignId, url: target },
       })
     }
   } catch {

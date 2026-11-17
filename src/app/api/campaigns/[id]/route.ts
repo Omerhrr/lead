@@ -79,6 +79,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     ? { ...evaluateSplitTest(arms), minSends: AB_MIN_SENDS }
     : null
 
+  // per-link CTR breakdown: every tracked-link hit grouped by URL
+  const linkGroups = await db.clickEvent.groupBy({
+    by: ["url"],
+    where: { campaignId: id },
+    _count: { _all: true },
+    orderBy: { _count: { url: "desc" } },
+    take: 8,
+  })
+  const topLinks = linkGroups.map((g) => ({ url: g.url, clicks: g._count._all }))
+
   return Response.json({
     campaign: {
       ...campaign,
@@ -87,6 +97,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       variants: variantRows.map((v) => ({ id: v.id, label: v.label, subject: v.subject, body: v.body })),
       variantStats,
       splitTest,
+      topLinks,
     },
     messages,
   })

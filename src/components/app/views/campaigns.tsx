@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
-  FlaskConical, Trophy, Eye, Plus, Trash2, MousePointerClick, Download, Link2,
+  FlaskConical, Trophy, Eye, Plus, Trash2, MousePointerClick, Download, Link2, FileText,
 } from "lucide-react"
 import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
 import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
@@ -244,6 +244,33 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
             >
               {busy === "export" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Download className="mr-2 h-3 w-3" />}
               Export CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("exportPdf")
+                try {
+                  const res = await fetch(`/api/campaigns/${id}/report-pdf`, { cache: "no-store" })
+                  if (!res.ok) throw new Error(`Export failed (${res.status})`)
+                  const blob = await res.blob()
+                  const a = document.createElement("a")
+                  a.href = URL.createObjectURL(blob)
+                  a.download = `autogtm-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.pdf`
+                  a.click()
+                  URL.revokeObjectURL(a.href)
+                  toast({ title: "PDF report exported", description: "One-page summary: funnel, split-test arms, tracked links" })
+                } catch (e) {
+                  toast({ title: "Export failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
+                } finally {
+                  setBusy(null)
+                }
+              }}
+            >
+              {busy === "exportPdf" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <FileText className="mr-2 h-3 w-3" />}
+              Export PDF
             </Button>
             {campaign.allowedActions.includes("approve") && (
               <Button size="sm" className="rounded-full" disabled={pool.length > 0 || busy !== null}
@@ -746,6 +773,39 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4">
+          {campaign.topLinks.length > 0 && (
+            <Card className="mb-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MousePointerClick className="h-4 w-4 text-emerald-600" />
+                  Tracked links
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {campaign.topLinks.map((l) => {
+                  const total = campaign.topLinks.reduce((s, x) => s + x.clicks, 0)
+                  const share = total > 0 ? Math.round((l.clicks / total) * 100) : 0
+                  return (
+                    <div key={l.url} className="flex items-center gap-3">
+                      <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 flex-1 truncate text-xs text-emerald-700 hover:underline"
+                      >
+                        {l.url}
+                      </a>
+                      <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${share}%` }} />
+                      </div>
+                      <span className="shrink-0 text-xs font-medium">{l.clicks} clicks · {share}%</span>
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardContent className="pt-6">
               {messages.length === 0 ? (

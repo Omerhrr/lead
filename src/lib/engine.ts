@@ -352,6 +352,15 @@ async function simulateOpens(projectIds: string[]) {
       where: { id: { in: clicked.map((m) => m.id) } },
       data: { opens: 1, openedAt: new Date(), clicks: 1, clickedAt: new Date() },
     })
+    // per-link breakdown rows: the simulated hit lands on the campaign CTA
+    const ctaOf = new Map(campaigns.map((c) => [c.id, c.ctaUrl as string]))
+    await db.clickEvent.createMany({
+      data: clicked.map((m) => ({
+        messageId: m.id,
+        campaignId: m.campaignId,
+        url: ctaOf.get(m.campaignId) ?? "unknown",
+      })),
+    })
   }
   const openOnly = flip.filter((m) => !clicked.includes(m))
   if (openOnly.length > 0) {
