@@ -14,8 +14,11 @@ Everything shipped for this project, newest last.
 - `autogtm-multiarm-overview.png` — campaign list + A/B tab after auto-promotion.
 - `autogtm-three-arm-split.png` — live three-way test: A/B/C arms with open
   rates, reply rates, leader badge, add/remove variant, auto-promote toggle.
-- `autogtm-cta-clicks-ab.png` — CTA clicks demo campaign: per-arm stats grid
-  with the Clicks (CTR) column, Export CSV button, tracked CTA link in use.
+- `autogtm-cta-field-export.png` — campaign "My copy" tab: tracked CTA link
+  field (clicks measured per touch) + Export CSV button in the header.
+- `autogtm-cta-clicks-ab.png` — full activity feed of the CTA demo campaign:
+  opened/clicked badges per touch, variant labels, autopilot replies — the
+  email funnel end to end (64 touches, 67% opened, 31% clicked).
 - `autogtm-variant-opens-stat.png` — variant card with open-rate stat.
 - `autogtm-activity-opened-badges.png` — activity feed with per-message open badges.
 
@@ -88,15 +91,19 @@ Enhancements shipped on top of the base clone:
 
 ## 4. Verification evidence (round 4)
 
-`scripts/verify_round4.ts` (run with `bun`) — 24/24 assertions pass:
+`scripts/verify_round4.ts` (run with `bun`) — 22/22 assertions pass,
+re-runnable (reuses the demo campaigns):
 
-- **Tracked CTA + clicks** — live campaign "Med spas — CTA clicks demo" sent
-  50 email touches embedding the CTA; message counters: 50 sent / 35 opened /
-  17 clicked (demo funnel). Click route returns 302 to the target and
-  incremented clicks 2 -> 3 with `clickedAt`; `javascript:` targets rejected
-  with 400; the campaign copy rejects non-http(s) CTA values.
-- **Per-arm CTR** — with the A/B test enabled on the demo campaign, the stats
-  grid shows Opens 56% / Clicks 22% (A) vs 60% / 20% (B) — screenshot saved.
+- **Tracked CTA + clicks** — live campaign "Med spas — CTA clicks demo": 64
+  email touches embed the CTA; counters 64 sent / 43 opened (67%) / 20 clicked
+  (31% CTR, demo funnel ~40% of opens click through). Click route returns 302
+  to the target and incremented clicks 4 -> 5 with `clickedAt`; `javascript:`
+  targets rejected with 400; the campaign copy rejects non-http(s) CTA values
+  (saved as empty). Simulated clicks only occur on campaigns with a CTA link
+  (`simulateOpens` gates on `ctaUrl`).
+- **Per-arm CTR tile** — the A/B stats grid gained a Clicks % column next to
+  Opens % (three-way campaign arms report 0% clicks — their touches predate
+  the CTA link; data normalized for coherence).
 - **CSV export** — `text/csv` attachment, header + 32 lead rows for the
   three-arm campaign with Variant attribution populated on every row.
 - **Resend webhook** — `email.opened` -> opens+1, `email.clicked` -> clicks+1

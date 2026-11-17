@@ -325,9 +325,11 @@ function willOpen(id: string): boolean {
 async function simulateOpens(projectIds: string[]) {
   const campaigns = await db.campaign.findMany({
     where: { projectId: { in: projectIds } },
-    select: { id: true },
+    select: { id: true, ctaUrl: true },
   })
   if (campaigns.length === 0) return 0
+  // only campaigns with a tracked CTA link can produce simulated clicks
+  const ctaSet = new Set(campaigns.filter((c) => c.ctaUrl).map((c) => c.id))
   const candidates = await db.message.findMany({
     where: {
       campaignId: { in: campaigns.map((c) => c.id) },
@@ -338,13 +340,13 @@ async function simulateOpens(projectIds: string[]) {
       opens: 0,
       createdAt: { lt: new Date(Date.now() - 3000) }, // no instant reads
     },
-    select: { id: true },
+    select: { id: true, campaignId: true },
     take: 300,
   })
   const flip = candidates.filter((m) => willOpen(m.id) && Math.random() < 0.3)
   if (flip.length === 0) return 0
-  // ~40% of opens also click through the tracked CTA link (demo mode)
-  const clicked = flip.filter(() => Math.random() < 0.4)
+  // ~40% of opens also click through the tracked CTA link (demo mode, CTA campaigns only)
+  const clicked = flip.filter((m) => ctaSet.has(m.campaignId) && Math.random() < 0.4)
   if (clicked.length > 0) {
     await db.message.updateMany({
       where: { id: { in: clicked.map((m) => m.id) } },
