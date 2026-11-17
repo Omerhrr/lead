@@ -1,0 +1,784 @@
+     1→     1→// Agent engine — reconstructs explee's outreach loop from the reverse-
+     2→     2→// engineered API semantics: brief → lead pool → approve → state machine
+     3→     3→// sends → autopilot replies → booked meetings, with credit metering.
+     4→     4→// Time is compressed: one 4s tick ~= a working chunk of a campaign day.
+     5→     5→
+     6→     6→import { db } from "@/lib/db"
+     7→     7→import { autopilotReply } from "@/lib/ai"
+     8→     8→import {
+     9→     9→  EMAIL_PRICE_USD,
+    10→    10→  LINKEDIN_TOUCH_PRICE_USD,
+    11→    11→  LINKEDIN_SEAT_PRICE_USD,
+    12→    12→  EMAILS_PER_DOMAIN_DAY,
+    13→    13→} from "@/lib/constants"
+    14→    14→import type { LeadFilters } from "@/lib/ai"
+    15→    15→
+    16→    16→const FOLLOWUP_MS_PER_DAY = 10 * 1000 // 1 campaign day = 10s real time
+    17→    17→const MEETING_LEAD_DAYS = [1, 2, 3, 4]
+    18→    18→
+    19→    19→const REPLY_CHANCE_BY_TOUCH = [0.3, 0.16, 0.1]
+    20→    20→const FIRST_REPLY_OUTCOMES: Array<{ p: number; outcome: string }> = [
+    21→    21→  { p: 0.42, outcome: "interested" },
+    22→    22→  { p: 0.26, outcome: "question" },
+    23→    23→  { p: 0.18, outcome: "not_interested" },
+    24→    24→  { p: 0.14, outcome: "unsubscribe" },
+    25→    25→]
+    26→    26→
+    27→    27→function rand(min: number, max: number) {
+    28→    28→  return min + Math.random() * (max - min)
+    29→    29→}
+    30→    30→function randInt(min: number, max: number) {
+    31→    31→  return Math.floor(rand(min, max + 1))
+    32→    32→}
+    33→    33→function pickWeighted<T>(entries: Array<{ p: number; outcome: T }>): T {
+    34→    34→  const roll = Math.random()
+    35→    35→  let acc = 0
+    36→    36→  for (const e of entries) {
+    37→    37→    acc += e.p
+    38→    38→    if (roll <= acc) return e.outcome
+    39→    39→  }
+    40→    40→  return entries[entries.length - 1].outcome
+    41→    41→}
+    42→    42→function todayStr(d = new Date()) {
+    43→    43→  return d.toISOString().slice(0, 10)
+    44→    44→}
+    45→    45→function monthStr(d = new Date()) {
+    46→    46→  return d.toISOString().slice(0, 7)
+    47→    47→}
+    48→    48→
+    49→    49→// ---------------------------------------------------------------- lead pool
+    50→    50→
+    51→    51→function tokenMatch(haystack: string, needles: string[]): boolean {
+    52→    52→  const h = haystack.toLowerCase()
+    53→    53→  return needles.some((n) => {
+    54→    54→    const t = n.toLowerCase().trim()
+    55→    55→    return t.length > 2 && (h.includes(t) || t.includes(h))
+    56→    56→  })
+    57→    57→}
+    58→    58→
+    59→    59→export async function generateLeadPool(campaignId: string) {
+    60→    60→  const campaign = await db.campaign.findUnique({
+    61→    61→    where: { id: campaignId },
+    62→    62→    include: { project: true },
+    63→    63→  })
+    64→    64→  if (!campaign) throw new Error("Campaign not found")
+    65→    65→
+    66→    66→  const filters: LeadFilters = campaign.filters
+    67→    67→    ? JSON.parse(campaign.filters)
+    68→    68→    : { industries: [], titles: [], geography: [], companySize: [], keywords: [] }
+    69→    69→
+    70→    70→  const user = await db.user.findUnique({
+    71→    71→    where: { id: campaign.project.userId },
+    72→    72→    include: { suppress: true },
+    73→    73→  })
+    74→    74→  const suppressedEmails = new Set(
+    75→    75→    (user?.suppress ?? []).filter((s) => s.type === "person").map((s) => s.value.toLowerCase())
+    76→    76→  )
+    77→    77→  const suppressedCompanies = new Set(
+    78→    78→    (user?.suppress ?? [])
+    79→    79→      .filter((s) => s.type === "company" || s.type === "domain")
+    80→    80→      .map((s) => s.value.toLowerCase())
+    81→    81→  )
+    82→    82→
+    83→    83→  const rows = await db.dbPerson.findMany({ include: { company: true } })
+    84→    84→
+    85→    85→  const scoreRow = (p: (typeof rows)[number]) => {
+    86→    86→    let industryMatch = tokenMatch(p.company.industry, filters.industries)
+    87→    87→    let kwMatch = false
+    88→    88→    if (!industryMatch && filters.keywords.length) {
+    89→    89→      kwMatch = tokenMatch(p.company.industry, filters.keywords) || tokenMatch(p.company.name, filters.keywords)
+    90→    90→    }
+    91→    91→    const geoMatch = filters.geography.length === 0 || tokenMatch(p.company.country, filters.geography)
+    92→    92→    const sizeMatch = filters.companySize.length === 0 || filters.companySize.includes(p.company.size)
+    93→    93→    const titleMatch = filters.titles.length === 0 || tokenMatch(p.title, filters.titles)
+    94→    94→    const score = Math.min(
+    95→    95→      96,
+    96→    96→      38 + p.seniority * 9 + (industryMatch ? 10 : kwMatch ? 6 : 0) + (geoMatch ? 6 : 0) + (sizeMatch ? 5 : 0) + (titleMatch ? 6 : 0)
+    97→    97→    )
+    98→    98→    return { p, industryMatch, kwMatch, geoMatch, sizeMatch, titleMatch, score }
+    99→    99→  }
+   100→   100→
+   101→   101→  const strict = rows.map(scoreRow).filter(
+   102→   102→    (r) => r.industryMatch && r.titleMatch && r.geoMatch && r.sizeMatch
+   103→   103→  )
+   104→   104→  const relaxed = rows.map(scoreRow).filter(
+   105→   105→    (r) => (r.industryMatch || r.kwMatch) && r.titleMatch && r.geoMatch
+   106→   106→  )
+   107→   107→  const fallback = rows.map(scoreRow).filter((r) => r.titleMatch && r.score >= 55)
+   108→   108→
+   109→   109→  const pool =
+   110→   110→    strict.length >= 24 ? strict : relaxed.length >= 24 ? relaxed : [...relaxed, ...fallback]
+   111→   111→
+   112→   112→  const seen = new Set<string>()
+   113→   113→  const chosen = pool
+   114→   114→    .sort((a, b) => b.score - a.score)
+   115→   115→    .filter((r) => {
+   116→   116→      if (seen.has(r.p.email)) return false
+   117→   117→      if (suppressedEmails.has(r.p.email.toLowerCase())) return false
+   118→   118→      if (suppressedCompanies.has(r.p.company.domain.toLowerCase()) || suppressedCompanies.has(r.p.company.name.toLowerCase())) return false
+   119→   119→      seen.add(r.p.email)
+   120→   120→      return true
+   121→   121→    })
+   122→   122→    .slice(0, 32)
+   123→   123→
+   124→   124→  await db.lead.deleteMany({ where: { campaignId, status: "pool" } })
+   125→   125→
+   126→   126→  await db.$transaction(
+   127→   127→    chosen.map((r) =>
+   128→   128→      db.lead.create({
+   129→   129→        data: {
+   130→   130→          campaignId,
+   131→   131→          name: r.p.name,
+   132→   132→          title: r.p.title,
+   133→   133→          company: r.p.company.name,
+   134→   134→          companyDomain: r.p.company.domain,
+   135→   135→          industry: r.p.company.industry,
+   136→   136→          companySize: r.p.company.size,
+   137→   137→          country: r.p.company.country,
+   138→   138→          city: r.p.company.city,
+   139→   139→          email: r.p.email,
+   140→   140→          linkedinUrl: r.p.linkedin,
+   141→   141→          score: r.score,
+   142→   142→          reasons: r.p.hook,
+   143→   143→          status: "pool",
+   144→   144→        },
+   145→   145→      })
+   146→   146→    )
+   147→   147→  )
+   148→   148→
+   149→   149→  await db.campaign.update({
+   150→   150→    where: { id: campaignId },
+   151→   151→    data: {
+   152→   152→      state: "pool_ready",
+   153→   153→      nextAction: "Review the lead pool and approve leads to unlock sending",
+   154→   154→    },
+   155→   155→  })
+   156→   156→
+   157→   157→  return chosen.length
+   158→   158→}
+   159→   159→
+   160→   160→// ------------------------------------------------------------- copy filling
+   161→   161→
+   162→   162→export function fillCopy(tpl: string, lead: { name: string; company: string; reasons: string | null }, senderName: string) {
+   163→   163→  return tpl
+   164→   164→    .replaceAll("{{first_name}}", lead.name.split(" ")[0])
+   165→   165→    .replaceAll("{{company}}", lead.company)
+   166→   166→    .replaceAll("{{hook}}", lead.reasons || "you are growing fast")
+   167→   167→    .replaceAll("{{sender_name}}", senderName)
+   168→   168→}
+   169→   169→
+   170→   170→// ------------------------------------------------------------------ billing
+   171→   171→
+   172→   172→async function charge(accountId: string, costUsd: number, description: string, opts: { emails: number; linkedin: number }) {
+   173→   173→  const account = await db.billingAccount.findUnique({ where: { id: String(accountId) } })
+   174→   174→  if (!account) return
+   175→   175→  await db.billingAccount.update({
+   176→   176→    where: { id: account.id },
+   177→   177→    data: {
+   178→   178→      prepaidBalanceUsd: account.prepaidBalanceUsd - costUsd,
+   179→   179→      spentTodayUsd: account.spentTodayUsd + costUsd,
+   180→   180→      spentThisMonthUsd: account.spentThisMonthUsd + costUsd,
+   181→   181→    },
+   182→   182→  })
+   183→   183→  await db.creditTransaction.create({
+   184→   184→    data: {
+   185→   185→      accountId: account.id,
+   186→   186→      type: "spend",
+   187→   187→      amountUsd: -costUsd,
+   188→   188→      balanceAfter: account.prepaidBalanceUsd - costUsd,
+   189→   189→      description,
+   190→   190→    },
+   191→   191→  })
+   192→   192→  const date = todayStr()
+   193→   193→  const existing = await db.usageDaily.findUnique({
+   194→   194→    where: { accountId_date: { accountId: account.id, date } },
+   195→   195→  })
+   196→   196→  if (existing) {
+   197→   197→    await db.usageDaily.update({
+   198→   198→      where: { id: existing.id },
+   199→   199→      data: {
+   200→   200→        emailsSent: existing.emailsSent + opts.emails,
+   201→   201→        linkedinTouches: existing.linkedinTouches + opts.linkedin,
+   202→   202→        spendUsd: existing.spendUsd + costUsd,
+   203→   203→      },
+   204→   204→    })
+   205→   205→  } else {
+   206→   206→    await db.usageDaily.create({
+   207→   207→      data: {
+   208→   208→        accountId: account.id,
+   209→   209→        date,
+   210→   210→        emailsSent: opts.emails,
+   211→   211→        linkedinTouches: opts.linkedin,
+   212→   212→        spendUsd: costUsd,
+   213→   213→      },
+   214→   214→    })
+   215→   215→  }
+   216→   216→}
+   217→   217→
+   218→   218→async function ensureDailyReset(accountId: string) {
+   219→   219→  const account = await db.billingAccount.findUnique({ where: { id: accountId } })
+   220→   220→  if (!account) return null
+   221→   221→  const today = todayStr()
+   222→   222→  if (account.spentTodayDate !== today) {
+   223→   223→    return db.billingAccount.update({
+   224→   224→      where: { id: account.id },
+   225→   225→      data: { spentTodayDate: today, spentTodayUsd: 0 },
+   226→   226→    })
+   227→   227→  }
+   228→   228→  return account
+   229→   229→}
+   230→   230→
+   231→   231→// ------------------------------------------------------------------- events
+   232→   232→
+   233→   233→async function noteReplyEvent(accountId: string, hot: boolean) {
+   234→   234→  const date = todayStr()
+   235→   235→  const existing = await db.usageDaily.findUnique({
+   236→   236→    where: { accountId_date: { accountId, date } },
+   237→   237→  })
+   238→   238→  if (existing) {
+   239→   239→    await db.usageDaily.update({
+   240→   240→      where: { id: existing.id },
+   241→   241→      data: { repliesReceived: existing.repliesReceived + 1, hotLeads: existing.hotLeads + (hot ? 1 : 0) },
+   242→   242→    })
+   243→   243→  } else {
+   244→   244→    await db.usageDaily.create({
+   245→   245→      data: { accountId, date, repliesReceived: 1, hotLeads: hot ? 1 : 0 },
+   246→   246→    })
+   247→   247→  }
+   248→   248→}
+   249→   249→
+   250→   250→const INBOUND_TEXT: Record<string, string[]> = {
+   251→   251→  interested: [
+   252→   252→    "Hi! This is actually really timely — we've been looking at solving exactly this. Happy to hear more. What does pricing look like?",
+   253→   253→    "Interesting — we have this problem on our list for this quarter. Do you have 15 minutes this week?",
+   254→   254→    "I'd be up for a quick chat. Thursday or Friday afternoon works on my end.",
+   255→   255→  ],
+   256→   256→  question: [
+   257→   257→    "Thanks for reaching out. Quick question — how does this integrate with what we already run? We're on a mixed stack.",
+   258→   258→    "Sounds relevant. What kind of results are your similar clients seeing, and how long does onboarding take?",
+   259→   259→  ],
+   260→   260→  not_interested: [
+   261→   261→    "Appreciate the note, but this isn't a priority for us right now. Maybe circle back next year.",
+   262→   262→  ],
+   263→   263→  unsubscribe: ["Please remove me from your list. Thanks."],
+   264→   264→  negotiating: [
+   265→   265→    "Thursday 14:00 works. Add it to my calendar and send the invite please.",
+   266→   266→    "Can we do Friday at 10:00 instead? I have a conflict Thursday.",
+   267→   267→  ],
+   268→   268→  booked_confirm: [
+   269→   269→    "Great, see you then. The invite landed, thanks!",
+   270→   270→  ],
+   271→   271→}
+   272→   272→
+   273→   273→// -------------------------------------------------------------------- tick
+   274→   274→
+   275→   275→export async function tick(userId: string) {
+   276→   276→  const account = await ensureDailyReset(
+   277→   277→    (await db.billingAccount.findUnique({ where: { userId } }))?.id ?? ""
+   278→   278→  )
+   279→   279→  if (!account) return { ok: false }
+   280→   280→
+   281→   281→  const projects = await db.project.findMany({ where: { userId } })
+   282→   282→  const projectIds = projects.map((p) => p.id)
+   283→   283→  const activeCampaigns = await db.campaign.findMany({
+   284→   284→    where: { projectId: { in: projectIds }, state: "sending", sendingNow: true },
+   285→   285→    include: { project: true },
+   286→   286→  })
+   287→   287→
+   288→   288→  const pulse = { sent: 0, replies: 0, booked: 0, spent: 0 }
+   289→   289→
+   290→   290→  for (const campaign of activeCampaigns) {
+   291→   291→    await advanceCampaign(campaign, account, pulse)
+   292→   292→  }
+   293→   293→  return { ok: true, ...pulse }
+   294→   294→}
+   295→   295→
+   296→   296→async function campaignCapacity(campaignId: string, projectId: string) {
+   297→   297→  const domains = await db.sendingDomain.findMany({
+   298→   298→    where: { projectId, status: "active" },
+   299→   299→  })
+   300→   300→  return domains.reduce((sum, d) => sum + d.emailsPerDay, 0)
+   301→   301→}
+   302→   302→
+   303→   303→async function advanceCampaign(
+   304→   304→  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string } },
+   305→   305→  account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
+   306→   306→  pulse: { sent: number; replies: number; booked: number; spent: number }
+   307→   307→) {
+   308→   308→  const now = new Date()
+   309→   309→
+   310→   310→  // 1) inbound replies due
+   311→   311→  const repliesDue = await db.lead.findMany({
+   312→   312→    where: {
+   313→   313→      campaignId: campaign.id,
+   314→   314→      replyDueAt: { lte: now },
+   315→   315→      status: "approved",
+   316→   316→      OR: [{ convStatus: null }, { convStatus: { in: ["negotiating", "question"] } }],
+   317→   317→    },
+   318→   318→  })
+   319→   319→  for (const lead of repliesDue) {
+   320→   320→    await processInbound(campaign, lead, account)
+   321→   321→    pulse.replies++
+   322→   322→  }
+   323→   323→
+   324→   324→  // 2) autopilot actions due
+   325→   325→  if (campaign.autopilotEnabled && campaign.autoReplyEnabled) {
+   326→   326→    const agentDue = await db.lead.findMany({
+   327→   327→      where: { campaignId: campaign.id, agentDueAt: { lte: now }, agentStage: { not: null }, convStatus: { in: ["interested", "negotiating", "question", "propose"] } },
+   328→   328→    })
+   329→   329→    for (const lead of agentDue.slice(0, 3)) {
+   330→   330→      await processAutopilot(campaign, lead)
+   331→   331→    }
+   332→   332→  }
+   333→   333→
+   334→   334→  // 3) budget guards
+   335→   335→  const capacity = await campaignCapacity(campaign.id, campaign.projectId)
+   336→   336→  const quota = Math.max(2, Math.ceil(capacity / 12))
+   337→   337→  const perSendCost = account.emailPriceUsd || EMAIL_PRICE_USD
+   338→   338→  const balanceOk = account.prepaidBalanceUsd >= perSendCost
+   339→   339→  const dailyOk = account.spentTodayUsd + perSendCost <= Math.min(account.dailyBudgetUsd, campaign.dailyBudgetUsd)
+   340→   340→  const monthlyOk = account.spentThisMonthUsd < account.monthlyCapUsd
+   341→   341→
+   342→   342→  if (!balanceOk) {
+   343→   343→    await db.campaign.update({
+   344→   344→      where: { id: campaign.id },
+   345→   345→      data: { nextAction: "Out of credits — top up billing to resume outreach" },
+   346→   346→    })
+   347→   347→    return
+   348→   348→  }
+   349→   349→  if (!monthlyOk) {
+   350→   350→    await db.campaign.update({
+   351→   351→      where: { id: campaign.id },
+   352→   352→      data: { nextAction: "Monthly cap reached — raise the cap in billing" },
+   353→   353→    })
+   354→   354→    return
+   355→   355→  }
+   356→   356→  if (!dailyOk) {
+   357→   357→    await db.campaign.update({
+   358→   358→      where: { id: campaign.id },
+   359→   359→      data: { nextAction: `Daily budget reached (${campaign.dailyBudgetUsd} USD) — resumes next cycle` },
+   360→   360→    })
+   361→   361→    return
+   362→   362→  }
+   363→   363→  if (capacity === 0) {
+   364→   364→    await db.campaign.update({
+   365→   365→      where: { id: campaign.id },
+   366→   366→      data: { nextAction: "No active sending domains — buy domains in the Domains tab" },
+   367→   367→    })
+   368→   368→    return
+   369→   369→  }
+   370→   370→
+   371→   371→  // 4) sends (first touches + follow-ups)
+   372→   372→  const eligible = await db.lead.findMany({
+   373→   373→    where: {
+   374→   374→      campaignId: campaign.id,
+   375→   375→      status: "approved",
+   376→   376→      convStatus: null,
+   377→   377→      OR: [
+   378→   378→        { touchCount: 0 },
+   379→   379→        { nextTouchAt: { lte: now }, touchCount: { lt: campaign.maxTouches } },
+   380→   380→      ],
+   381→   381→    },
+   382→   382→    orderBy: [{ touchCount: "asc" }, { score: "desc" }],
+   383→   383→    take: quota,
+   384→   384→  })
+   385→   385→
+   386→   386→  let emails = 0
+   387→   387→  let linkedin = 0
+   388→   388→  for (const lead of eligible) {
+   389→   389→    const isFollowup = lead.touchCount > 0
+   390→   390→    const seatDue = account.linkedinSeatBilledMonth !== monthStr()
+   391→   391→    const seatCost = account.linkedinSeats * LINKEDIN_SEAT_PRICE_USD
+   392→   392→    const seatAffordable = !seatDue || account.prepaidBalanceUsd >= seatCost + perSendCost
+   393→   393→    const useLinkedin = !!lead.linkedinUrl && lead.touchCount >= 1 && seatAffordable && Math.random() < 0.3
+   394→   394→    const channel = useLinkedin ? "linkedin" : "email"
+   395→   395→    const touchIndex = lead.touchCount + 1
+   396→   396→
+   397→   397→    const subject = isFollowup
+   398→   398→      ? touchIndex === 2
+   399→   399→        ? `Re: ${(campaign.copySubject || "Quick question").replace(/^Re:\s*/i, "")}`
+   400→   400→        : `Following up (last one, promise)`
+   401→   401→      : (campaign.copySubject || "Quick question")
+   402→   402→    const bodyTpl = campaign.copyBody || `Hi {{first_name}}, quick idea for {{company}}.`
+   403→   403→    let body = fillCopy(bodyTpl, lead, campaign.project.senderName)
+   404→   404→    if (isFollowup) {
+   405→   405→      body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox — happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
+   406→   406→      if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way — good luck with ${lead.company}!`
+   407→   407→    }
+   408→   408→
+   409→   409→    await db.message.create({
+   410→   410→      data: {
+   411→   411→        campaignId: campaign.id,
+   412→   412→        leadId: lead.id,
+   413→   413→        direction: "out",
+   414→   414→        channel,
+   415→   415→        kind: "touch",
+   416→   416→        touchIndex,
+   417→   417→        subject: channel === "email" ? subject : null,
+   418→   418→        body,
+   419→   419→        status: Math.random() < 0.03 ? "bounced" : "sent",
+   420→   420→      },
+   421→   421→    })
+   422→   422→
+   423→   423→    const nextTouchAt =
+   424→   424→      touchIndex < campaign.maxTouches
+   425→   425→        ? new Date(now.getTime() + campaign.delayDays * FOLLOWUP_MS_PER_DAY)
+   426→   426→        : null
+   427→   427→
+   428→   428→    const willReply =
+   429→   429→      lead.replyDueAt === null &&
+   430→   430→      Math.random() < (REPLY_CHANCE_BY_TOUCH[Math.min(touchIndex - 1, REPLY_CHANCE_BY_TOUCH.length - 1)] ?? 0.08)
+   431→   431→
+   432→   432→    await db.lead.update({
+   433→   433→      where: { id: lead.id },
+   434→   434→      data: {
+   435→   435→        touchCount: touchIndex,
+   436→   436→        nextTouchAt,
+   437→   437→        replyDueAt: willReply ? new Date(now.getTime() + rand(15000, 55000)) : lead.replyDueAt,
+   438→   438→        replyChannel: willReply ? "email" : lead.replyChannel,
+   439→   439→      },
+   440→   440→    })
+   441→   441→
+   442→   442→    if (channel === "email") emails++
+   443→   443→    else linkedin++
+   444→   444→  }
+   445→   445→
+   446→   446→  if (emails + linkedin > 0) {
+   447→   447→    const cost = emails * perSendCost + linkedin * LINKEDIN_TOUCH_PRICE_USD
+   448→   448→    let description = `${campaign.name}: ${emails} email${emails === 1 ? "" : "s"} sent`
+   449→   449→    if (linkedin > 0) description += `, ${linkedin} LinkedIn touch${linkedin === 1 ? "" : "es"}`
+   450→   450→    await charge(account.id, cost, description, { emails, linkedin })
+   451→   451→    pulse.sent += emails
+   452→   452→    pulse.spent += cost
+   453→   453→
+   454→   454→    // LinkedIn seat billing: once per month on first touch — never overdraw:
+   455→   455→    // if the balance can't cover the seats, LinkedIn touches fall back to email.
+   456→   456→    if (linkedin > 0 && account.linkedinSeatBilledMonth !== monthStr()) {
+   457→   457→      const seatCost = account.linkedinSeats * LINKEDIN_SEAT_PRICE_USD
+   458→   458→      const fresh = await db.billingAccount.findUnique({ where: { id: account.id } })
+   459→   459→      if (fresh && fresh.prepaidBalanceUsd >= seatCost) {
+   460→   460→        await db.billingAccount.update({
+   461→   461→          where: { id: account.id },
+   462→   462→          data: {
+   463→   463→            prepaidBalanceUsd: fresh.prepaidBalanceUsd - seatCost,
+   464→   464→            linkedinSeatBilledMonth: monthStr(),
+   465→   465→          },
+   466→   466→        })
+   467→   467→        await db.creditTransaction.create({
+   468→   468→          data: {
+   469→   469→            accountId: account.id,
+   470→   470→            type: "linkedin_seats",
+   471→   471→            amountUsd: -seatCost,
+   472→   472→            balanceAfter: fresh.prepaidBalanceUsd - seatCost,
+   473→   473→            description: `LinkedIn seats — ${account.linkedinSeats} seat${account.linkedinSeats === 1 ? "" : "s"} (${monthStr()})`,
+   474→   474→          },
+   475→   475→        })
+   476→   476→      } else if (fresh) {
+   477→   477→        await db.campaign.update({
+   478→   478→          where: { id: campaign.id },
+   479→   479→          data: {
+   480→   480→            nextAction: `LinkedIn seats not charged — balance below ${seatCost} USD; touches sent via email instead`,
+   481→   481→          },
+   482→   482→        })
+   483→   483→      }
+   484→   484→    }
+   485→   485→  }
+   486→   486→
+   487→   487→  // 5) completion check
+   488→   488→  const approvedLeads = await db.lead.findMany({ where: { campaignId: campaign.id, status: "approved" } })
+   489→   489→  const done = approvedLeads.every(
+   490→   490→    (l) =>
+   491→   491→      ["booked", "closed", "unsubscribed", "active"].includes(l.convStatus ?? "") ||
+   492→   492→      (l.convStatus === null && l.touchCount >= campaign.maxTouches && !l.nextTouchAt)
+   493→   493→  )
+   494→   494→  if (approvedLeads.length > 0 && done) {
+   495→   495→    await db.campaign.update({
+   496→   496→      where: { id: campaign.id },
+   497→   497→      data: { state: "completed", sendingNow: false, nextAction: "Campaign completed — review hot leads in the inbox" },
+   498→   498→    })
+   499→   499→  } else {
+   500→   500→    await db.campaign.update({
+   501→   501→      where: { id: campaign.id },
+   502→   502→      data: { nextAction: "Sending — sequences running on schedule" },
+   503→   503→    })
+   504→   504→  }
+   505→   505→}
+   506→   506→
+   507→   507→// -------------------------------------------------------- inbound processing
+   508→   508→
+   509→   509→async function processInbound(
+   510→   510→  campaign: { id: string; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number },
+   511→   511→  lead: { id: string; name: string; company: string; convStatus: string | null; replyChannel: string | null },
+   512→   512→  account: { id: string }
+   513→   513→) {
+   514→   514→  const now = new Date()
+   515→   515→  let outcome: string
+   516→   516→  if (lead.convStatus === "negotiating") {
+   517→   517→    outcome = "negotiating"
+   518→   518→  } else if (lead.convStatus === "question") {
+   519→   519→    outcome = Math.random() < 0.5 ? "interested" : "not_interested"
+   520→   520→  } else {
+   521→   521→    outcome = pickWeighted(FIRST_REPLY_OUTCOMES)
+   522→   522→  }
+   523→   523→
+   524→   524→  const pool = INBOUND_TEXT[outcome] ?? INBOUND_TEXT.not_interested
+   525→   525→  const text = pool[randInt(0, pool.length - 1)]
+   526→   526→
+   527→   527→  await db.message.create({
+   528→   528→    data: {
+   529→   529→      campaignId: campaign.id,
+   530→   530→      leadId: lead.id,
+   531→   531→      direction: "in",
+   532→   532→      channel: lead.replyChannel || "email",
+   533→   533→      kind: "reply",
+   534→   534→      body: text,
+   535→   535→      status: "sent",
+   536→   536→    },
+   537→   537→  })
+   538→   538→
+   539→   539→  const hot = outcome === "interested" || outcome === "negotiating"
+   540→   540→  const updates: Record<string, unknown> = { replyDueAt: null, sentiment: outcome }
+   541→   541→  switch (outcome) {
+   542→   542→    case "interested":
+   543→   543→      updates.convStatus = "interested"
+   544→   544→      updates.isHot = true
+   545→   545→      if (campaign.autopilotEnabled && campaign.autoReplyEnabled) {
+   546→   546→        updates.agentDueAt = new Date(now.getTime() + Math.max(10, campaign.autoReplyDelayMinutes) * 1000)
+   547→   547→        updates.agentStage = "propose_meeting"
+   548→   548→      } else {
+   549→   549→        updates.convStatus = "active"
+   550→   550→      }
+   551→   551→      break
+   552→   552→    case "question":
+   553→   553→      updates.convStatus = "question"
+   554→   554→      if (campaign.autopilotEnabled && campaign.autoReplyEnabled) {
+   555→   555→        updates.agentDueAt = new Date(now.getTime() + Math.max(10, campaign.autoReplyDelayMinutes) * 1000)
+   556→   556→        updates.agentStage = "answer"
+   557→   557→      } else {
+   558→   558→        updates.convStatus = "active"
+   559→   559→      }
+   560→   560→      break
+   561→   561→    case "not_interested":
+   562→   562→      updates.convStatus = "closed"
+   563→   563→      break
+   564→   564→    case "unsubscribe":
+   565→   565→      updates.convStatus = "unsubscribed"
+   566→   566→      updates.status = "suppressed"
+   567→   567→      break
+   568→   568→    case "negotiating":
+   569→   569→      // lead accepted the meeting
+   570→   570→      updates.convStatus = "negotiating"
+   571→   571→      updates.isHot = true
+   572→   572→      updates.agentDueAt = new Date(now.getTime() + Math.max(10, campaign.autoReplyDelayMinutes) * 1000)
+   573→   573→      updates.agentStage = "confirm"
+   574→   574→      updates.meetingAt = new Date(now.getTime() + MEETING_LEAD_DAYS[randInt(0, 3)] * 24 * 3600 * 1000)
+   575→   575→      break
+   576→   576→    case "booked_confirm":
+   577→   577→      updates.convStatus = "booked"
+   578→   578→      break
+   579→   579→  }
+   580→   580→
+   581→   581→  await db.lead.update({ where: { id: lead.id }, data: updates })
+   582→   582→  await noteReplyEvent(account.id, hot)
+   583→   583→}
+   584→   584→
+   585→   585→// ------------------------------------------------------ autopilot processing
+   586→   586→
+   587→   587→async function processAutopilot(
+   588→   588→  campaign: { id: string; autoReplyDelayMinutes: number; offer: string; customerProblem: string; project: { companyName: string; senderName: string } },
+   589→   589→  lead: { id: string; name: string; company: string; convStatus: string | null; agentStage: string | null; meetingAt: Date | null; replyChannel: string | null }
+   590→   590→) {
+   591→   591→  const now = new Date()
+   592→   592→  const stage = lead.agentStage as "propose_meeting" | "confirm" | "answer"
+   593→   593→  const companyName = campaign.project.companyName || "our team"
+   594→   594→
+   595→   595→  // find the last inbound message to answer
+   596→   596→  const lastIn = await db.message.findFirst({
+   597→   597→    where: { leadId: lead.id, direction: "in" },
+   598→   598→    orderBy: { createdAt: "desc" },
+   599→   599→  })
+   600→   600→
+   601→   601→  const slot = `${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][randInt(0, 4)]}, ${["10:00", "11:30", "14:00", "15:30"][randInt(0, 3)]}`
+   602→   602→  const text = await autopilotReply({
+   603→   603→    companyName,
+   604→   604→    offer: campaign.offer,
+   605→   605→    customerProblem: campaign.customerProblem,
+   606→   606→    leadName: lead.name,
+   607→   607→    leadCompany: lead.company,
+   608→   608→    leadMessage: lastIn?.body ?? "Interested in learning more.",
+   609→   609→    stage,
+   610→   610→    slot,
+   611→   611→  })
+   612→   612→
+   613→   613→  await db.message.create({
+   614→   614→    data: {
+   615→   615→      campaignId: campaign.id,
+   616→   616→      leadId: lead.id,
+   617→   617→      direction: "out",
+   618→   618→      channel: lead.replyChannel || "email",
+   619→   619→      kind: "autopilot",
+   620→   620→      touchIndex: 0,
+   621→   621→      subject: null,
+   622→   622→      body: text,
+   623→   623→      status: "sent",
+   624→   624→    },
+   625→   625→  })
+   626→   626→
+   627→   627→  const updates: Record<string, unknown> = { agentDueAt: null, agentStage: null }
+   628→   628→  if (stage === "propose_meeting") {
+   629→   629→    updates.convStatus = "negotiating"
+   630→   630→    updates.replyDueAt = new Date(now.getTime() + rand(15000, 40000))
+   631→   631→    updates.replyChannel = "email"
+   632→   632→  } else if (stage === "confirm") {
+   633→   633→    updates.convStatus = "booked"
+   634→   634→    updates.meetingAt =
+   635→   635→      lead.meetingAt ?? new Date(now.getTime() + MEETING_LEAD_DAYS[randInt(0, 3)] * 24 * 3600 * 1000)
+   636→   636→  } else if (stage === "answer") {
+   637→   637→    // lead decides after the answer
+   638→   638→    updates.convStatus = "question"
+   639→   639→    updates.replyDueAt = new Date(now.getTime() + rand(15000, 40000))
+   640→   640→    updates.replyChannel = "email"
+   641→   641→  }
+   642→   642→  await db.lead.update({ where: { id: lead.id }, data: updates })
+   643→   643→}
+   644→   644→
+   645→   645→// ------------------------------------------------------- campaign actions
+   646→   646→
+   647→   647→export async function campaignAction(campaignId: string, action: string) {
+   648→   648→  const campaign = await db.campaign.findUnique({ where: { id: campaignId } })
+   649→   649→  if (!campaign) throw new Error("Campaign not found")
+   650→   650→
+   651→   651→  switch (action) {
+   652→   652→    case "approve":
+   653→   653→      await db.campaign.update({
+   654→   654→        where: { id: campaignId },
+   655→   655→        data: { state: "approved", nextAction: "Press Start to begin outreach" },
+   656→   656→      })
+   657→   657→      break
+   658→   658→    case "start": {
+   659→   659→      const owned = await db.sendingDomain.count({ where: { projectId: campaign.projectId, status: "active" } })
+   660→   660→      if (owned === 0) {
+   661→   661→        return { ok: false, error: "No active sending domains. Buy domains in the Domains tab first." }
+   662→   662→      }
+   663→   663→      await db.campaign.update({
+   664→   664→        where: { id: campaignId },
+   665→   665→        data: { state: "sending", sendingNow: true, nextAction: "Sending — sequences running on schedule" },
+   666→   666→      })
+   667→   667→      break
+   668→   668→    }
+   669→   669→    case "stop":
+   670→   670→      await db.campaign.update({
+   671→   671→        where: { id: campaignId },
+   672→   672→        data: { sendingNow: false, state: "paused", nextAction: "Paused — press Resume to continue" },
+   673→   673→      })
+   674→   674→      break
+   675→   675→    case "resume":
+   676→   676→      await db.campaign.update({
+   677→   677→        where: { id: campaignId },
+   678→   678→        data: { sendingNow: true, state: "sending", nextAction: "Sending — sequences running on schedule" },
+   679→   679→      })
+   680→   680→      break
+   681→   681→    case "archive":
+   682→   682→      await db.campaign.update({
+   683→   683→        where: { id: campaignId },
+   684→   684→        data: { state: "archived", sendingNow: false, nextAction: "Archived" },
+   685→   685→      })
+   686→   686→      break
+   687→   687→    case "unarchive":
+   688→   688→      await db.campaign.update({
+   689→   689→        where: { id: campaignId },
+   690→   690→        data: { state: "paused", nextAction: "Paused — press Resume to continue" },
+   691→   691→      })
+   692→   692→      break
+   693→   693→    default:
+   694→   694→      return { ok: false, error: `Unknown action: ${action}` }
+   695→   695→  }
+   696→   696→  return { ok: true }
+   697→   697→}
+   698→   698→
+   699→   699→// ------------------------------------------------------------- manual reply
+   700→   700→
+   701→   701→export async function manualReply(leadId: string, body: string) {
+   702→   702→  const lead = await db.lead.findUnique({
+   703→   703→    where: { id: leadId },
+   704→   704→    include: { campaign: { include: { project: true } } },
+   705→   705→  })
+   706→   706→  if (!lead) throw new Error("Lead not found")
+   707→   707→  const now = new Date()
+   708→   708→
+   709→   709→  await db.message.create({
+   710→   710→    data: {
+   711→   711→      campaignId: lead.campaignId,
+   712→   712→      leadId: lead.id,
+   713→   713→      direction: "out",
+   714→   714→      channel: "email",
+   715→   715→      kind: "manual",
+   716→   716→      subject: `Re: ${lead.campaign.copySubject || "our conversation"}`,
+   717→   717→      body,
+   718→   718→      status: "sent",
+   719→   719→    },
+   720→   720→  })
+   721→   721→
+   722→   722→  // simulate the lead's reaction to the human reply
+   723→   723→  const roll = Math.random()
+   724→   724→  if (roll < 0.5) {
+   725→   725→    const slot = `${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][randInt(0, 4)]}, ${["10:00", "11:30", "14:00", "15:30"][randInt(0, 3)]}`
+   726→   726→    await db.message.create({
+   727→   727→      data: {
+   728→   728→        campaignId: lead.campaignId,
+   729→   729→        leadId: lead.id,
+   730→   730→        direction: "in",
+   731→   731→        channel: "email",
+   732→   732→        kind: "reply",
+   733→   733→        body: `${slot} works — send the invite and I'll be there.`,
+   734→   734→        status: "sent",
+   735→   735→      },
+   736→   736→    })
+   737→   737→    await db.lead.update({
+   738→   738→      where: { id: lead.id },
+   739→   739→      data: {
+   740→   740→        convStatus: "booked",
+   741→   741→        isHot: true,
+   742→   742→        sentiment: "interested",
+   743→   743→        replyDueAt: null,
+   744→   744→        agentDueAt: null,
+   745→   745→        agentStage: null,
+   746→   746→        meetingAt: new Date(now.getTime() + MEETING_LEAD_DAYS[randInt(0, 3)] * 24 * 3600 * 1000),
+   747→   747→      },
+   748→   748→    })
+   749→   749→  } else if (roll < 0.75) {
+   750→   750→    await db.message.create({
+   751→   751→      data: {
+   752→   752→        campaignId: lead.campaignId,
+   753→   753→        leadId: lead.id,
+   754→   754→        direction: "in",
+   755→   755→        channel: "email",
+   756→   756→        kind: "reply",
+   757→   757→        body: "Makes sense. One more thing — what does the rollout look like for a team our size, and who else typically needs to be involved?",
+   758→   758→        status: "sent",
+   759→   759→      },
+   760→   760→    })
+   761→   761→    await db.lead.update({
+   762→   762→      where: { id: lead.id },
+   763→   763→      data: { convStatus: "active", replyDueAt: null, agentDueAt: null, agentStage: null },
+   764→   764→    })
+   765→   765→  } else {
+   766→   766→    await db.message.create({
+   767→   767→      data: {
+   768→   768→        campaignId: lead.campaignId,
+   769→   769→        leadId: lead.id,
+   770→   770→        direction: "in",
+   771→   771→        channel: "email",
+   772→   772→        kind: "reply",
+   773→   773→        body: "Thanks for the details — we're going to pass for now, but I'll keep you in mind.",
+   774→   774→        status: "sent",
+   775→   775→      },
+   776→   776→    })
+   777→   777→    await db.lead.update({
+   778→   778→      where: { id: lead.id },
+   779→   779→      data: { convStatus: "closed", sentiment: "not_interested", replyDueAt: null, agentDueAt: null, agentStage: null },
+   780→   780→    })
+   781→   781→  }
+   782→   782→  return { ok: true }
+   783→   783→}
+   784→   784→

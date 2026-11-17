@@ -27,6 +27,7 @@ export async function GET() {
       sendingNow: c.sendingNow,
       nextAction: c.nextAction,
       createdAt: c.createdAt,
+      variantTest: c.variantTest,
       poolCount: c.leads.filter((l) => l.status === "pool").length,
       approvedCount: c.leads.filter((l) => l.status === "approved").length,
       hotCount: c.leads.filter((l) => l.isHot).length,

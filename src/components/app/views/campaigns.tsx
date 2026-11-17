@@ -15,8 +15,9 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
+  FlaskConical, Trophy,
 } from "lucide-react"
-import { api, patch, post, type CampaignDetail, type CampaignListItem, type Lead, type MessageRow } from "../api-client"
+import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
 import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
 
 export function CampaignsView({ onChanged }: { onChanged: () => Promise<void> | void }) {
@@ -72,6 +73,11 @@ export function CampaignsView({ onChanged }: { onChanged: () => Promise<void> | 
               <Badge variant="outline" className={stateBadgeClass(c.state)}>
                 {STATE_LABELS[c.state] ?? c.state}
               </Badge>
+              {c.variantTest && (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+                  <FlaskConical className="mr-1 h-3 w-3" /> A/B
+                </Badge>
+              )}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {c.approvedCount} approved · {c.hotCount} hot · {c.bookedCount} booked
@@ -88,6 +94,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null)
   const [leads, setLeads] = useState<Lead[]>([])
   const [messages, setMessages] = useState<MessageRow[]>([])
+  const [delivery, setDelivery] = useState<DeliveryStatus | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [settings, setSettings] = useState({
@@ -97,10 +104,14 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
   const { toast } = useToast()
 
   const load = useCallback(async () => {
-    const data = await api<{ campaign: CampaignDetail; messages: MessageRow[] }>(`/api/campaigns/${id}`)
+    const [data, deliveryData] = await Promise.all([
+      api<{ campaign: CampaignDetail; messages: MessageRow[] }>(`/api/campaigns/${id}`),
+      api<DeliveryStatus>("/api/delivery").catch(() => null),
+    ])
     setCampaign(data.campaign)
     setLeads(data.campaign.leads)
     setMessages(data.messages)
+    setDelivery(deliveryData)
     setSettings({
       maxTouches: data.campaign.maxTouches,
       delayDays: data.campaign.delayDays,
@@ -232,6 +243,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
           <TabsTrigger value="pool">Lead pool ({pool.length})</TabsTrigger>
           <TabsTrigger value="approved">Approved ({approved.length})</TabsTrigger>
           <TabsTrigger value="copy">My copy</TabsTrigger>
+          <TabsTrigger value="variants">A/B test</TabsTrigger>
           <TabsTrigger value="brief">Brief</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -327,6 +339,127 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
           </Card>
         </TabsContent>
 
+        <TabsContent value="variants" className="mt-4 space-y-4">
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <FlaskConical className="h-4 w-4 text-emerald-600" />
+                  Split test {campaign.variantTest ? "— testing live" : "— off"}
+                </div>
+                <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                  Approved leads are split evenly across variants and keep their variant for the whole
+                  sequence. Promote the winner to close the test and make its copy the campaign copy.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">A/B test</span>
+                <Switch
+                  checked={campaign.variantTest}
+                  disabled={busy !== null}
+                  onCheckedChange={async (v) => {
+                    setBusy("variantTest")
+                    try {
+                      await patch(`/api/campaigns/${id}`, { variantTest: v })
+                      await load()
+                      toast({ title: v ? "A/B test enabled — variants A and B seeded from My copy" : "A/B test disabled" })
+                    } finally {
+                      setBusy(null)
+                    }
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          {campaign.variants.map((v) => {
+            const st = campaign.variantStats.find((s) => s.id === v.id)
+            return (
+              <Card key={v.id}>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+                      Variant {v.label}
+                    </Badge>
+                    {campaign.variantTest && st && st.sent > 0 && (
+                      <span className="text-xs text-muted-foreground">live in rotation</span>
+                    )}
+                  </CardTitle>
+                  <Button size="sm" variant="outline" className="rounded-full"
+                    disabled={busy !== null || !st || st.sent === 0}
+                    onClick={() => act("promote_variant", { variantId: v.id })}>
+                    {busy === "promote_variant" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trophy className="mr-2 h-3 w-3" />}
+                    Promote winner
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {st && (
+                    <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+                      {([
+                        ["Leads", st.assigned],
+                        ["Sent", st.sent],
+                        ["Replies", st.replied],
+                        ["Reply rate", st.sent > 0 ? `${Math.round(st.replyRate * 100)}%` : "—"],
+                        ["Hot", st.hot],
+                        ["Booked", st.booked],
+                      ] as Array<[string, string | number]>).map(([k, val]) => (
+                        <div key={k} className="rounded-xl border border-border p-2">
+                          <div className="text-xs text-muted-foreground">{k}</div>
+                          <div className="text-sm font-semibold">{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label>Subject</Label>
+                    <Input
+                      value={v.subject}
+                      onChange={(e) =>
+                        setCampaign((cur) =>
+                          cur
+                            ? { ...cur, variants: cur.variants.map((x) => (x.id === v.id ? { ...x, subject: e.target.value } : x)) }
+                            : cur
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Body (merge tokens: {"{{first_name}} {{company}} {{hook}} {{sender_name}}"})</Label>
+                    <Textarea
+                      rows={6}
+                      value={v.body}
+                      onChange={(e) =>
+                        setCampaign((cur) =>
+                          cur
+                            ? { ...cur, variants: cur.variants.map((x) => (x.id === v.id ? { ...x, body: e.target.value } : x)) }
+                            : cur
+                        )
+                      }
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" className="rounded-full" disabled={busy !== null}
+                    onClick={async () => {
+                      setBusy(`variant-${v.id}`)
+                      try {
+                        await patch(`/api/campaigns/${id}`, { variants: [{ id: v.id, subject: v.subject, body: v.body }] })
+                        toast({ title: `Variant ${v.label} saved` })
+                      } finally {
+                        setBusy(null)
+                      }
+                    }}>
+                    {busy === `variant-${v.id}` && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                    Save variant {v.label}
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+          {campaign.variants.length === 0 && (
+            <div className="rounded-xl border border-border py-10 text-center text-sm text-muted-foreground">
+              Turn on the A/B test to seed variants A and B from "My copy".
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="brief" className="mt-4">
           <Card>
             <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2">
@@ -404,6 +537,24 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   />
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3 sm:col-span-3">
+                {delivery && (
+                  <>
+                    <Badge variant="outline" className={delivery.configured ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "text-muted-foreground"}>
+                      <Mail className="mr-1 h-3 w-3" />
+                      {delivery.configured ? `Live delivery: ${delivery.provider}` : "Simulated delivery"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {delivery.configured
+                        ? `First touches are delivered for real via ${delivery.provider}${delivery.fromEmail ? ` (from ${delivery.fromEmail})` : ""}`
+                        : "Set RESEND_API_KEY or SMTP_HOST to deliver for real — metering and autopilot keep running"}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {delivery.counts.delivered} delivered · {delivery.counts.failed} failed · {delivery.counts.simulated} simulated
+                    </span>
+                  </>
+                )}
+              </div>
               <div className="sm:col-span-3">
                 <Button size="sm" className="rounded-full" disabled={busy !== null} onClick={saveSettings}>
                   {busy === "save" && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
@@ -421,26 +572,32 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                 <div className="py-8 text-center text-sm text-muted-foreground">No messages yet</div>
               ) : (
                 <div className="space-y-3">
-                  {messages.map((m) => (
-                    <div key={m.id} className="flex gap-3 border-b border-border/40 pb-3 last:border-0">
-                      <span className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.direction === "out" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                        {m.direction === "out" ? (
-                          m.channel === "linkedin" ? <Linkedin className="h-3 w-3" /> : <Mail className="h-3 w-3" />
-                        ) : (
-                          <Mail className="h-3 w-3" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm">
-                          <span className="font-medium">{m.lead?.name}</span>
-                          <span className="text-muted-foreground">
-                            {" "}· {m.direction === "out" ? (m.kind === "autopilot" ? "autopilot" : `touch ${m.touchIndex}${m.status === "bounced" ? " (bounced)" : ""}`) : "reply"}
-                          </span>
+                  {messages.map((m) => {
+                    const vLabel = m.variantId
+                      ? campaign.variants.find((v) => v.id === m.variantId)?.label
+                      : null
+                    return (
+                      <div key={m.id} className="flex gap-3 border-b border-border/40 pb-3 last:border-0">
+                        <span className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.direction === "out" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                          {m.direction === "out" ? (
+                            m.channel === "linkedin" ? <Linkedin className="h-3 w-3" /> : <Mail className="h-3 w-3" />
+                          ) : (
+                            <Mail className="h-3 w-3" />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm">
+                            <span className="font-medium">{m.lead?.name}</span>
+                            <span className="text-muted-foreground">
+                              {" "}· {m.direction === "out" ? (m.kind === "autopilot" ? "autopilot" : `touch ${m.touchIndex}${m.status === "bounced" ? " (bounced)" : ""}`) : "reply"}
+                              {m.kind === "touch" && vLabel ? ` · variant ${vLabel}` : ""}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{m.body.slice(0, 200)}</div>
                         </div>
-                        <div className="text-xs text-muted-foreground">{m.body.slice(0, 200)}</div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

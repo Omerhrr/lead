@@ -11,6 +11,7 @@ import {
   LINKEDIN_SEAT_PRICE_USD,
   EMAILS_PER_DOMAIN_DAY,
 } from "@/lib/constants"
+import { deliverOutreach, isProviderConfigured } from "@/lib/email-provider"
 import type { LeadFilters } from "@/lib/ai"
 
 const FOLLOWUP_MS_PER_DAY = 10 * 1000 // 1 campaign day = 10s real time
@@ -301,7 +302,7 @@ async function campaignCapacity(campaignId: string, projectId: string) {
 }
 
 async function advanceCampaign(
-  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string } },
+  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string } },
   account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
   pulse: { sent: number; replies: number; booked: number; spent: number }
 ) {
@@ -383,6 +384,24 @@ async function advanceCampaign(
     take: quota,
   })
 
+  // A/B split test: when enabled with 2+ variants, each lead is pinned to the
+  // variant with the fewest assigned approved leads (balanced split).
+  const variants = campaign.variantTest
+    ? await db.copyVariant.findMany({ where: { campaignId: campaign.id }, orderBy: { label: "asc" } })
+    : []
+  const useVariants = variants.length >= 2
+  const variantCounts = new Map<string, number>()
+  if (useVariants) {
+    const grouped = await db.lead.groupBy({
+      by: ["variantId"],
+      where: { campaignId: campaign.id, status: "approved", variantId: { not: null } },
+      _count: { _all: true },
+    })
+    for (const g of grouped) if (g.variantId) variantCounts.set(g.variantId, g._count._all)
+  }
+
+  const providerLive = isProviderConfigured()
+
   let emails = 0
   let linkedin = 0
   for (const lead of eligible) {
@@ -394,17 +413,64 @@ async function advanceCampaign(
     const channel = useLinkedin ? "linkedin" : "email"
     const touchIndex = lead.touchCount + 1
 
+    // resolve the lead's variant (assigned once, kept for the whole sequence)
+    let variant: { id: string; label: string; subject: string; body: string } | null = null
+    if (useVariants) {
+      if (lead.variantId && variants.some((v) => v.id === lead.variantId)) {
+        variant = variants.find((v) => v.id === lead.variantId) ?? null
+      } else {
+        variant = [...variants].sort(
+          (a, b) => (variantCounts.get(a.id) ?? 0) - (variantCounts.get(b.id) ?? 0)
+        )[0]
+        variantCounts.set(variant.id, (variantCounts.get(variant.id) ?? 0) + 1)
+      }
+    }
+
+    const baseSubject = variant?.subject ?? campaign.copySubject ?? "Quick question"
     const subject = isFollowup
       ? touchIndex === 2
-        ? `Re: ${(campaign.copySubject || "Quick question").replace(/^Re:\s*/i, "")}`
+        ? `Re: ${baseSubject.replace(/^Re:\s*/i, "")}`
         : `Following up (last one, promise)`
-      : (campaign.copySubject || "Quick question")
-    const bodyTpl = campaign.copyBody || `Hi {{first_name}}, quick idea for {{company}}.`
+      : baseSubject
+    const bodyTpl = variant?.body ?? campaign.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`
     let body = fillCopy(bodyTpl, lead, campaign.project.senderName)
     if (isFollowup) {
       body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox — happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
       if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way — good luck with ${lead.company}!`
     }
+
+    // real delivery hook (email channel only; simulated when no provider env)
+    let delivery: { deliveryStatus: "simulated" | "delivered" | "failed"; provider: string | null } = {
+      deliveryStatus: "simulated",
+      provider: null,
+    }
+    if (channel === "email") {
+      let fromEmail = campaign.project.companyDomain
+        ? `hello@${campaign.project.companyDomain}`
+        : "hello@autogtm.local"
+      if (providerLive) {
+        const dom = await db.sendingDomain.findFirst({
+          where: { projectId: campaign.projectId, status: "active" },
+          orderBy: { createdAt: "asc" },
+        })
+        if (dom) fromEmail = `hello@${dom.domain}`
+      }
+      delivery = await deliverOutreach({
+        to: lead.email,
+        fromName: campaign.project.senderName,
+        fromEmail,
+        subject,
+        text: body,
+      })
+    }
+    const msgStatus =
+      delivery.deliveryStatus === "delivered"
+        ? "sent"
+        : delivery.deliveryStatus === "failed"
+          ? "bounced"
+          : Math.random() < 0.03
+            ? "bounced"
+            : "sent"
 
     await db.message.create({
       data: {
@@ -416,7 +482,10 @@ async function advanceCampaign(
         touchIndex,
         subject: channel === "email" ? subject : null,
         body,
-        status: Math.random() < 0.03 ? "bounced" : "sent",
+        status: msgStatus,
+        variantId: variant?.id ?? null,
+        deliveryStatus: delivery.deliveryStatus,
+        provider: delivery.provider,
       },
     })
 
@@ -434,6 +503,7 @@ async function advanceCampaign(
       data: {
         touchCount: touchIndex,
         nextTouchAt,
+        variantId: variant?.id ?? lead.variantId,
         replyDueAt: willReply ? new Date(now.getTime() + rand(15000, 55000)) : lead.replyDueAt,
         replyChannel: willReply ? "email" : lead.replyChannel,
       },

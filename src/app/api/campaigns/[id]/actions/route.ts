@@ -23,7 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     case "approve_leads": {
       const poolLeads = await db.lead.findMany({
         where: { campaignId: id, status: "pool" },
-        select: { id: true },
+        orderBy: { score: "desc" },
+        select: { id: true, score: true },
       })
       const targets = approveAll
         ? poolLeads.map((l) => l.id)
@@ -31,10 +32,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (targets.length === 0) {
         return Response.json({ error: "No pool leads selected" }, { status: 400 })
       }
+
+      // balanced A/B assignment (highest-scored lead first) when a split test is on
+      const variantMap = new Map<string, string>()
+      if (campaign.variantTest) {
+        const variants = await db.copyVariant.findMany({
+          where: { campaignId: id },
+          orderBy: { label: "asc" },
+        })
+        if (variants.length >= 2) {
+          const grouped = await db.lead.groupBy({
+            by: ["variantId"],
+            where: { campaignId: id, variantId: { not: null } },
+            _count: { _all: true },
+          })
+          const counts = new Map<string, number>()
+          for (const g of grouped) if (g.variantId) counts.set(g.variantId, g._count._all)
+          const targetSet = new Set(targets)
+          for (const lead of poolLeads) {
+            if (!targetSet.has(lead.id)) continue
+            const v = [...variants].sort(
+              (a, b) => (counts.get(a.id) ?? 0) - (counts.get(b.id) ?? 0)
+            )[0]
+            variantMap.set(lead.id, v.id)
+            counts.set(v.id, (counts.get(v.id) ?? 0) + 1)
+          }
+        }
+      }
+
       await db.lead.updateMany({
         where: { id: { in: targets }, campaignId: id, status: "pool" },
         data: { status: "approved" },
       })
+      if (variantMap.size > 0) {
+        await db.$transaction(
+          [...variantMap].map(([leadId, variantId]) =>
+            db.lead.update({ where: { id: leadId }, data: { variantId } })
+          )
+        )
+      }
       const remaining = await db.lead.count({ where: { campaignId: id, status: "pool" } })
       if (remaining === 0) {
         await db.campaign.update({
@@ -62,6 +98,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     case "regenerate_pool": {
       const count = await generateLeadPool(id)
       return Response.json({ ok: true, poolSize: count })
+    }
+    case "promote_variant": {
+      const variantId = String(body?.variantId ?? "")
+      const variant = await db.copyVariant.findFirst({ where: { id: variantId, campaignId: id } })
+      if (!variant) {
+        return Response.json({ error: "Variant not found" }, { status: 404 })
+      }
+      await db.campaign.update({
+        where: { id },
+        data: {
+          copySubject: variant.subject,
+          copyBody: variant.body,
+          variantTest: false,
+          nextAction: `Variant ${variant.label} promoted — split test closed, the winner is now "My copy"`,
+        },
+      })
+      return Response.json({ ok: true, winner: variant.label })
     }
     case "approve":
     case "start":

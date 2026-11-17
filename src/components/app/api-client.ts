@@ -30,6 +30,7 @@ export interface CampaignListItem {
   sendingNow: boolean
   nextAction: string
   createdAt: string
+  variantTest: boolean
   poolCount: number
   approvedCount: number
   hotCount: number
@@ -60,6 +61,31 @@ export interface Lead {
   createdAt: string
 }
 
+export interface VariantRow {
+  id: string
+  label: string
+  subject: string
+  body: string
+}
+
+export interface VariantStat {
+  id: string
+  label: string
+  assigned: number
+  sent: number
+  replied: number
+  replyRate: number
+  hot: number
+  booked: number
+}
+
+export interface DeliveryStatus {
+  configured: boolean
+  provider: string | null
+  fromEmail: string | null
+  counts: { simulated: number; delivered: number; failed: number }
+}
+
 export interface CampaignDetail {
   id: string
   name: string
@@ -83,6 +109,9 @@ export interface CampaignDetail {
   copySubject: string | null
   copyBody: string | null
   copyWarnings: string[]
+  variantTest: boolean
+  variants: VariantRow[]
+  variantStats: VariantStat[]
   state: string
   sendingNow: boolean
   nextAction: string
@@ -101,6 +130,8 @@ export interface MessageRow {
   subject: string | null
   body: string
   status: string
+  variantId: string | null
+  deliveryStatus: string
   createdAt: string
   lead?: { name: string; company: string }
 }

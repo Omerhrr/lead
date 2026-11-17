@@ -134,10 +134,24 @@ model Campaign {
   copyBody     String?
   copyWarnings String? // JSON array of strings
   filters      String? // JSON from nl-to-filters
+  // --- A/B split test ---
+  variantTest  Boolean @default(false)
   dailyBudgetUsd Float @default(30)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   leads        Lead[]
+  variants     CopyVariant[]
+}
+
+model CopyVariant {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  label      String // "A" | "B"
+  subject    String
+  body       String
+  createdAt  DateTime @default(now())
+  @@index([campaignId])
 }
 
 model Lead {
@@ -171,6 +185,7 @@ model Lead {
   agentStage  String?   // propose_meeting | negotiate | answer | done
   replyChannel String? // email|linkedin for the pending reply
   meetingAt   DateTime?
+  variantId   String? // A/B split test assignment
   createdAt   DateTime @default(now())
   messages    Message[]
   @@index([campaignId, status])
@@ -188,6 +203,10 @@ model Message {
   subject    String?
   body       String
   status     String @default("sent") // sent | opened | bounced
+  // A/B + real delivery provenance
+  variantId      String? // which copy variant produced this touch
+  deliveryStatus String @default("simulated") // simulated | delivered | failed
+  provider       String? // resend | smtp (null = simulated)
   createdAt  DateTime @default(now())
   @@index([leadId])
 }
