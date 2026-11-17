@@ -95,6 +95,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
   const [leads, setLeads] = useState<Lead[]>([])
   const [messages, setMessages] = useState<MessageRow[]>([])
   const [delivery, setDelivery] = useState<DeliveryStatus | null>(null)
+  const [testTo, setTestTo] = useState("")
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [settings, setSettings] = useState({
@@ -159,6 +160,27 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
     try {
       await patch(`/api/campaigns/${id}`, settings)
       toast({ title: "Settings saved" })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function sendTestEmail() {
+    setBusy("test")
+    try {
+      const r = await post<{ deliveryStatus?: string; provider?: string | null; error?: string }>(
+        "/api/delivery",
+        { to: testTo.trim() }
+      )
+      if (r.error) {
+        toast({ title: "Test send failed", description: r.error, variant: "destructive" })
+      } else if (r.deliveryStatus === "delivered") {
+        toast({ title: `Test email delivered via ${r.provider}`, description: `Check the inbox of ${testTo.trim()}` })
+      } else {
+        toast({ title: "Provider rejected the test email", description: "Check credentials / from address", variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Test send failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
     } finally {
       setBusy(null)
     }
@@ -549,6 +571,21 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                         ? `First touches are delivered for real via ${delivery.provider}${delivery.fromEmail ? ` (from ${delivery.fromEmail})` : ""}`
                         : "Set RESEND_API_KEY or SMTP_HOST to deliver for real — metering and autopilot keep running"}
                     </span>
+                    {delivery.configured && (
+                      <span className="flex items-center gap-1">
+                        <Input
+                          type="email"
+                          placeholder="you@company.com"
+                          className="h-7 w-44 rounded-full text-xs"
+                          value={testTo}
+                          onChange={(e) => setTestTo(e.target.value)}
+                        />
+                        <Button size="sm" variant="outline" className="h-7 rounded-full text-xs" disabled={busy !== null || !testTo.trim()} onClick={sendTestEmail}>
+                          {busy === "test" && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                          Send test
+                        </Button>
+                      </span>
+                    )}
                     <span className="ml-auto text-xs text-muted-foreground">
                       {delivery.counts.delivered} delivered · {delivery.counts.failed} failed · {delivery.counts.simulated} simulated
                     </span>
