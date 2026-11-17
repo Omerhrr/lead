@@ -1,0 +1,227 @@
+// AutoGTM — reverse-engineered clone of explee.com ("app-auto-gtm")
+// Schema mirrors the API surface found in their OpenAPI 3.1 spec:
+// projects, campaigns (brief + lifecycle state machine), leads (pool/approved),
+// messages (touches + inbox conversations), sending domains (DomainPlan/BYOD),
+// billing (prepaid balance, caps, usage) and suppress lists.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  viaLinkedin Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  billing   BillingAccount?
+  projects  Project[]
+  suppress   SuppressEntry[]
+}
+
+model BillingAccount {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prepaidBalanceUsd Float   @default(30)
+  monthlyCapUsd     Float   @default(500)
+  spentThisMonthUsd Float   @default(0)
+  spentTodayUsd     Float   @default(0)
+  spentTodayDate    String  @default("")
+  dailyBudgetUsd    Float   @default(50)
+  emailPriceUsd     Float   @default(0.04)
+  linkedinSeats     Int     @default(1)
+  linkedinSeatPriceUsd Float @default(29)
+  linkedinSeatBilledMonth String @default("")
+  postpaidEnabled   Boolean @default(false)
+  transactions      CreditTransaction[]
+  usageDays         UsageDaily[]
+}
+
+model CreditTransaction {
+  id           String   @id @default(cuid())
+  accountId    String
+  account      BillingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type         String
+  amountUsd    Float
+  balanceAfter Float
+  description  String
+  createdAt    DateTime @default(now())
+}
+
+model UsageDaily {
+  id              String  @id @default(cuid())
+  accountId       String
+  account         BillingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date            String
+  emailsSent      Int     @default(0)
+  linkedinTouches Int     @default(0)
+  repliesReceived Int     @default(0)
+  hotLeads        Int     @default(0)
+  meetingsBooked  Int     @default(0)
+  spendUsd        Float   @default(0)
+  @@unique([accountId, date])
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyDomain String
+  companyName   String
+  senderName    String
+  senderTitle   String   @default("Founder")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  campaigns     Campaign[]
+  sendingDomains SendingDomain[]
+}
+
+model SendingDomain {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  domain      String
+  source      String   @default("platform") // platform | byod
+  status      String   @default("warming")  // active | warming | pending_dns
+  emailsPerDay Int     @default(40)
+  mailboxes   Int      @default(2)
+  createdAt   DateTime @default(now())
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  // --- CampaignCreate brief (mirrors their schema) ---
+  offer            String
+  customerProblem  String
+  targetRole       String
+  targetGeography  String
+  targetCompanySize String
+  positiveCriteria String?
+  negativeCriteria String?
+  exampleClients   String?
+  keywords         String?
+  instructions     String?
+  followupInstructions String?
+  language         String @default("English")
+  // --- followups + schedule ---
+  maxTouches   Int     @default(3)
+  delayDays    Int     @default(3)
+  scheduleDays String  @default("Mon,Tue,Wed,Thu,Fri")
+  workStart    Int     @default(9)
+  workEnd      Int     @default(17)
+  timezone     String  @default("America/New_York")
+  // --- autopilot ---
+  autopilotEnabled     Boolean @default(true)
+  autoReplyEnabled     Boolean @default(true)
+  autoReplyDelayMinutes Int    @default(10)
+  replyCcEmails        String?
+  // --- state machine: draft|pool_ready|approved|sending|paused|completed|archived ---
+  state      String  @default("draft")
+  sendingNow Boolean @default(false)
+  nextAction String  @default("Submit the brief to generate your lead pool")
+  // --- AI copy ("My copy") + nl-to-filters output ---
+  copySubject  String?
+  copyBody     String?
+  copyWarnings String? // JSON array of strings
+  filters      String? // JSON from nl-to-filters
+  dailyBudgetUsd Float @default(30)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  leads        Lead[]
+}
+
+model Lead {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // person + company (from the simulated B2B database)
+  name        String
+  title       String
+  company     String
+  companyDomain String
+  industry    String
+  companySize String
+  country     String
+  city        String?
+  email       String
+  linkedinUrl String?
+  score       Int
+  reasons     String? // AI hook facts, comma-joined
+  status      String  @default("pool") // pool|approved|rejected|suppressed
+  // conversation state
+  convStatus  String? // active|replied|interested|booked|closed|unsubscribed
+  isHot       Boolean @default(false)
+  sentiment   String?
+  notes       String?
+  // engine scheduling (compressed sim time)
+  touchCount  Int      @default(0)
+  nextTouchAt DateTime?
+  replyDueAt  DateTime?
+  agentDueAt  DateTime? // autopilot action deadline
+  agentStage  String?   // propose_meeting | negotiate | answer | done
+  replyChannel String? // email|linkedin for the pending reply
+  meetingAt   DateTime?
+  createdAt   DateTime @default(now())
+  messages    Message[]
+  @@index([campaignId, status])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  campaignId String
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  direction  String // out | in
+  channel    String @default("email") // email | linkedin
+  kind       String // touch | reply | autopilot | manual | system
+  touchIndex Int    @default(0)
+  subject    String?
+  body       String
+  status     String @default("sent") // sent | opened | bounced
+  createdAt  DateTime @default(now())
+  @@index([leadId])
+}
+
+model SuppressEntry {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type     String // person | company | domain
+  value    String
+  createdAt DateTime @default(now())
+  @@unique([userId, type, value])
+}
+
+// Simulated B2B database ("105M companies" in the real product)
+model DbCompany {
+  id       String @id @default(cuid())
+  name     String
+  domain   String @unique
+  industry String
+  size     String
+  country  String
+  city     String
+  people   DbPerson[]
+}
+
+model DbPerson {
+  id        String @id @default(cuid())
+  companyId String
+  company   DbCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  title     String
+  seniority Int // 3 = founder/c-level, 2 = director/vp, 1 = manager/head
+  email     String @unique
+  linkedin  String?
+  hook      String
+}
