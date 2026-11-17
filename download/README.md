@@ -18,10 +18,15 @@ Everything shipped for this project, newest last.
   field (clicks measured per touch) + Export CSV button in the header.
 - `autogtm-cta-clicks-ab.png` — full activity feed of the CTA demo campaign:
   opened/clicked badges per touch, variant labels, autopilot replies — the
-  email funnel end to end (64 touches, 67% opened, 31% clicked).
+  email funnel end to end (64 touches, 67% opened).
 - `autogtm-round5-tracked-links-pdf.png` — round-5 UI: "Export PDF" next to
   "Export CSV" in the campaign header and the "Tracked links" card with
   per-URL click share above the activity feed.
+- `autogtm-tracked-links-card.png` — Activity tab close-up: the "Tracked
+  links" card with the CTA URL, click share bar and live counters
+  (36 clicks · 100% share).
+- `autogtm-export-pdf-header.png` — campaign header actions: Export CSV,
+  Export PDF, Archive.
 - `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
   (funnel tiles, split-test arms, tracked links, next action).
 - `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.
@@ -142,7 +147,7 @@ re-runnable (reuses the demo campaigns):
   per-URL share bars (screenshot). Historical demo clicks were backfilled
   into `ClickEvent` rows so message counters and the breakdown agree.
 - **PDF summary report** — `GET /api/campaigns/<id>/report-pdf` returns
-  `application/pdf` (3340 bytes, %PDF magic, attachment filename); without a
+  `application/pdf` (~3.3 KB, %PDF magic, attachment filename); without a
   session it 401s. The rendered page shows the funnel tiles, split-test arms
   table, tracked links and next action (sample saved as
   `autogtm-campaign-report-sample.pdf`).

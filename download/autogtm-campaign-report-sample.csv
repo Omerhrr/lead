@@ -1,6 +1,4 @@
 Lead,Title,Company,Company domain,Email,Country,Company size,Score,Status,Variant,Conversation,Touches,Opens,Clicks,Replied,Hot,Booked,Meeting at,Sentiment,Hook
-Max Ferreira,Founder & CEO,Aurum Medspa,aurummedspa.com,max.ferreira@aurummedspa.com,United States,51-200,83,approved,A,,3,3,2,no,no,no,,,adding a third treatment room
-Anna Alderton,Co-Founder,Brightline Dental Group,brightlinedental.com,anna.alderton@brightlinedental.com,United States,11-50,82,approved,,booked,1,1,0,yes,yes,yes,2026-11-20,negotiating,pending hygiene recall backlog
 Sophie Novak,Co-Founder,Cala Derma Institute,caladerma.ae,sophie.novak@caladerma.ae,UAE,11-50,82,approved,B,,3,1,0,no,no,no,,,booked out 6 weeks for injectables
 Zoe Sullivan,Co-Founder,Ledgerline Advisory,ledgerline.cpa,zoe@ledgerline.cpa,United States,11-50,82,approved,A,,3,2,1,no,no,no,,,nearing tax season capacity
 Grace Foster,Co-Founder,Tidal & Co Media,tidalandco.com,grace@tidalandco.com,United States,11-50,82,approved,,closed,1,0,0,yes,no,no,,not_interested,client roster at 14 and growing
@@ -26,8 +24,10 @@ David Okafor,Co-Founder,Gearhound,gearhound.co,david@gearhound.co,United Kingdom
 Julia Okafor,Co-Founder,Basalt Performance,basaltperformance.de,julia@basaltperformance.de,Germany,11-50,76,approved,A,,3,1,0,no,no,no,,,client roster at 14 and growing
 Chris Grant,Founder & CEO,Basalt Performance,basaltperformance.de,chris.grant@basaltperformance.de,Germany,11-50,76,approved,,closed,1,1,0,yes,no,no,,not_interested,narrowing to a performance niche
 Laura Nakamura,Founder & CEO,Stonebridge Estates,stonebridgeestates.co.uk,laura.nakamura@stonebridgeestates.co.uk,United Kingdom,11-50,76,approved,B,,3,0,0,no,no,no,,,launching a property management arm
-Sam Sullivan,Co-Founder,Kinetic Club,kineticclub.sg,sam@kineticclub.sg,Singapore,11-50,76,approved,A,,3,2,9,no,no,no,,,adding recovery and sauna amenities
+Sam Sullivan,Co-Founder,Kinetic Club,kineticclub.sg,sam@kineticclub.sg,Singapore,11-50,76,approved,A,,3,2,18,no,no,no,,,adding recovery and sauna amenities
 Priya Moreau,Co-Founder,Lumen Aesthetics,lumenaesthetics.com,priya.moreau@lumenaesthetics.com,United States,11-50,88,suppressed,,unsubscribed,1,1,1,yes,no,no,,unsubscribe,adding a third treatment room
+Max Ferreira,Founder & CEO,Aurum Medspa,aurummedspa.com,max.ferreira@aurummedspa.com,United States,51-200,83,suppressed,A,,3,3,2,no,no,no,,,adding a third treatment room
+Anna Alderton,Co-Founder,Brightline Dental Group,brightlinedental.com,anna.alderton@brightlinedental.com,United States,11-50,82,suppressed,,booked,1,1,0,yes,yes,yes,2026-11-20,negotiating,pending hygiene recall backlog
 Kate Ellis,Founder & CEO,Copperfield Goods,copperfieldgoods.com,kate@copperfieldgoods.com,United States,11-50,82,suppressed,,unsubscribed,1,0,0,yes,no,no,,unsubscribe,launching on Amazon EU
 Zoe Ferreira,Co-Founder,Forge Fitness Studios,forgefitness.com,zoe.ferreira@forgefitness.com,United States,11-50,82,suppressed,,unsubscribed,2,1,1,yes,no,no,,unsubscribe,corporate wellness contracts in pipeline
 Maya Bennett,Founder & CEO,Harbor & Crate,harborcrate.com,maya@harborcrate.com,United States,51-200,77,suppressed,,unsubscribed,1,1,0,yes,no,no,,unsubscribe,fleet expansion planned for Q3
