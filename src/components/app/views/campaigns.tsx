@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
-  FlaskConical, Trophy, Eye, Plus,
+  FlaskConical, Trophy, Eye, Plus, Trash2,
 } from "lucide-react"
 import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
 import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
@@ -474,12 +474,46 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                       <span className="text-xs text-muted-foreground">live in rotation</span>
                     )}
                   </CardTitle>
-                  <Button size="sm" variant="outline" className="rounded-full"
-                    disabled={busy !== null || !st || st.sent === 0}
-                    onClick={() => act("promote_variant", { variantId: v.id })}>
-                    {busy === "promote_variant" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trophy className="mr-2 h-3 w-3" />}
-                    Promote winner
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="rounded-full"
+                      disabled={busy !== null || !st || st.sent === 0}
+                      onClick={() => act("promote_variant", { variantId: v.id })}>
+                      {busy === "promote_variant" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trophy className="mr-2 h-3 w-3" />}
+                      Promote winner
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-muted-foreground hover:text-destructive"
+                      title={
+                        st && st.assigned > 0
+                          ? "Variants with assigned leads can't be removed"
+                          : campaign.variantTest && campaign.variants.length <= 2
+                            ? "A live split test needs at least two arms"
+                            : `Remove variant ${v.label}`
+                      }
+                      disabled={
+                        busy !== null ||
+                        (st && st.assigned > 0) ||
+                        (campaign.variantTest && campaign.variants.length <= 2)
+                      }
+                      onClick={async () => {
+                        setBusy(`remove-${v.id}`)
+                        try {
+                          await patch(`/api/campaigns/${id}`, { removeVariant: v.id })
+                          await load()
+                          toast({ title: `Variant ${v.label} removed` })
+                        } catch (e) {
+                          toast({ title: "Could not remove variant", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
+                        } finally {
+                          setBusy(null)
+                        }
+                      }}
+                    >
+                      {busy === `remove-${v.id}` ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Trash2 className="mr-2 h-3 w-3" />}
+                      Remove
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {st && (

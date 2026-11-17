@@ -12,6 +12,8 @@ Everything shipped for this project, newest last.
 - `autogtm-ab-variants.png` — A/B split-test tab with per-variant stats.
 - `autogtm-ab-settings-delivery.png` — settings tab: delivery-provider status panel.
 - `autogtm-multiarm-overview.png` — campaign list + A/B tab after auto-promotion.
+- `autogtm-three-arm-split.png` — live three-way test: A/B/C arms with open
+  rates, reply rates, leader badge, add/remove variant, auto-promote toggle.
 - `autogtm-variant-opens-stat.png` — variant card with open-rate stat.
 - `autogtm-activity-opened-badges.png` — activity feed with per-message open badges.
 
@@ -31,9 +33,11 @@ Enhancements shipped on top of the base clone:
   simulation mode, nothing else changes. "Send test" verifies credentials.
 - **Multi-arm split tests (A/B/C/D)** — "A/B test" seeds variants A and B from
   your copy; "Add variant" asks the AI for a fresh angle (C, then D, max 4
-  arms). Approved leads are split evenly and pinned to a variant for the whole
-  sequence. Per-arm stats: sent, opens, open rate, replies, reply rate, hot,
-  booked. Inline editing + one-click "Promote winner".
+  arms); "Remove" deletes an unused arm (guards: a live test never drops
+  below two arms, arms with assigned leads are protected). Approved leads are
+  split evenly (fewest-assigned arm first) and pinned to a variant for the
+  whole sequence. Per-arm stats: sent, opens, open rate, replies, reply rate,
+  hot, booked. Inline editing + one-click "Promote winner".
 - **Auto-promotion with significance testing** — flip "Auto-promote" and the
   engine closes the test itself once the leading arm beats the runner-up with
   a two-proportion z-test (p < 0.10, every arm ≥ 8 sends): winner copy becomes
@@ -48,3 +52,22 @@ Enhancements shipped on top of the base clone:
 - **Metering, autopilot, compressed-time engine** — unchanged: $30 trial credit,
   $0.04/email, domain plans, LinkedIn seat billing, agent autopilot with
   meeting booking (1 campaign day ≈ 10 s).
+
+## 3. Verification evidence (round 3)
+
+`scripts/verify_round3.ts` (run with `bun`) drives the real API end to end:
+
+- **Balanced multi-arm split** — live campaign "Med spas — three-way copy
+  test" split 11/11/10 across arms A/B/C after engine ticks; per-arm stats
+  A 55% / B 36% / C 60% reply rate, opens 70-73%, split-test leader badge on
+  the statistically-leading arm (z-test vs runner-up shown in the UI).
+- **Open-tracking pixel** — `GET /api/open/<messageId>` returns a 1×1 GIF and
+  incremented the message `2 -> 4` on two hits, `openedAt` stamped; demo-mode
+  simulated opens spread over the first campaign days.
+- **Remove guards** — arm with assigned leads → HTTP 400; unused arm D added
+  and removed cleanly (back to A/B/C); live test refusing to drop below two
+  arms → HTTP 400.
+- **Auto-promotion** — fixture with 20 leads/arm, A 20% vs B 50% reply rate:
+  one tick closed the test and promoted B — `"Variant B auto-promoted — 50%
+  vs 20% reply rate (p=0.05), test closed"`.
+- Quality gates: `tsc --noEmit` clean, `eslint src` clean, dev log error-free.

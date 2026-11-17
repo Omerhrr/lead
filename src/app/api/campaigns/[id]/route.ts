@@ -223,6 +223,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
   }
 
+  // remove an unused arm. Guards keep the test honest: a live test never
+  // drops below two arms, and an arm that already has assigned leads keeps
+  // its stats (removing it would orphan their attribution).
+  if (typeof body.removeVariant === "string") {
+    const vid = body.removeVariant
+    const variant = await db.copyVariant.findFirst({ where: { id: vid, campaignId: id } })
+    if (!variant) {
+      return Response.json({ error: "Variant not found" }, { status: 404 })
+    }
+    const siblings = await db.copyVariant.count({ where: { campaignId: id } })
+    if (existing.variantTest && siblings <= 2) {
+      return Response.json(
+        { error: "A live split test needs at least two arms — turn the test off first" },
+        { status: 400 }
+      )
+    }
+    const assigned = await db.lead.count({ where: { variantId: vid } })
+    if (assigned > 0) {
+      return Response.json(
+        { error: `Variant ${variant.label} has ${assigned} assigned leads — removing it would break their stats` },
+        { status: 400 }
+      )
+    }
+    await db.copyVariant.delete({ where: { id: vid } })
+  }
+
   if (body.regeneratePool) {
     const { generateLeadPool } = await import("@/lib/engine")
     const count = await generateLeadPool(id)
