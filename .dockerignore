@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+db/*.db
+db/*.db-journal
+dev.log
+server.log
+download
+scripts
+agent-ctx
+*.png
+*.pdf
+*.csv
+*.docx

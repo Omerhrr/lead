@@ -23,6 +23,22 @@ model User {
   billing   BillingAccount?
   projects  Project[]
   suppress   SuppressEntry[]
+  teamMembers TeamMember[] @relation("TeamOwner")
+}
+
+// Workspace seats ("team" in the real product): collaborators invited to the
+// account with a role, optionally holding one of the LinkedIn seats.
+model TeamMember {
+  id       String @id @default(cuid())
+  ownerId  String
+  owner    User   @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  email    String
+  name     String
+  role     String @default("member") // owner | member | viewer
+  status   String @default("invited") // invited | active
+  linkedinSeat Boolean @default(false) // occupies one of the billing account's LinkedIn seats
+  createdAt DateTime @default(now())
+  @@unique([ownerId, email])
 }
 
 model BillingAccount {
@@ -142,6 +158,9 @@ model Campaign {
   // --- A/B split test ---
   variantTest  Boolean @default(false)
   autoPromote  Boolean @default(false) // promote the statistically-significant winner automatically
+  // LinkedIn touches as a second outreach channel (requires a seat on the
+  // billing account; the engine falls back to email without one)
+  linkedinEnabled Boolean @default(true)
   ctaUrl       String?  // tracked CTA link appended to email touches (clicks measured per message)
   dailyBudgetUsd Float @default(30)
   createdAt    DateTime @default(now())

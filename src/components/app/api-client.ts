@@ -126,10 +126,13 @@ export interface CampaignDetail {
   ctaUrl: string | null
   variantTest: boolean
   autoPromote: boolean
+  linkedinEnabled: boolean
   variants: VariantRow[]
   variantStats: VariantStat[]
   splitTest: SplitTestSummary | null
   topLinks: Array<{ url: string; clicks: number }>
+  linkedinTouches: number
+  emailTouches: number
   state: string
   sendingNow: boolean
   nextAction: string
@@ -257,6 +260,22 @@ export interface ExplorerResponse {
   }
 }
 
+export interface TeamMemberRow {
+  id: string
+  email: string
+  name: string
+  role: string
+  status: string
+  linkedinSeat: boolean
+  createdAt: string
+}
+
+export interface TeamResponse {
+  owner: { email: string; name: string | null }
+  members: TeamMemberRow[]
+  seats: { linkedinSeats: number; seatsUsed: number; seatsAvailable: number }
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -274,3 +293,4 @@ export const post = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "POST", body: JSON.stringify(body) })
 export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) })
+export const del = <T>(path: string) => api<T>(path, { method: "DELETE" })

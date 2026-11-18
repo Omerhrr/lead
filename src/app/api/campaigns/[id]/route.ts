@@ -89,6 +89,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   })
   const topLinks = linkGroups.map((g) => ({ url: g.url, clicks: g._count._all }))
 
+  // channel mix — LinkedIn touches metered against the account's seats
+  const [linkedinTouches, emailTouches] = await Promise.all([
+    db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "linkedin" } }),
+    db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "email" } }),
+  ])
+
   return Response.json({
     campaign: {
       ...campaign,
@@ -98,6 +104,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       variantStats,
       splitTest,
       topLinks,
+      linkedinTouches,
+      emailTouches,
     },
     messages,
   })
@@ -126,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.maxTouches === "number") data.maxTouches = String(Math.max(1, Math.min(5, body.maxTouches)))
   if (typeof body.delayDays === "number") data.delayDays = String(Math.max(1, Math.min(7, body.delayDays)))
   if (typeof body.dailyBudgetUsd === "number") data.dailyBudgetUsd = String(body.dailyBudgetUsd)
-  const boolFields = ["autopilotEnabled", "autoReplyEnabled"]
+  const boolFields = ["autopilotEnabled", "autoReplyEnabled", "linkedinEnabled"]
   const updatePayload: Record<string, string | number | boolean> = { ...data }
   for (const key of boolFields) {
     if (typeof body[key] === "boolean") updatePayload[key] = body[key]

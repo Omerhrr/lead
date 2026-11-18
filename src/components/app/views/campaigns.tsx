@@ -101,6 +101,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
   const [settings, setSettings] = useState({
     maxTouches: 3, delayDays: 3, dailyBudgetUsd: 30,
     autopilotEnabled: true, autoReplyEnabled: true, autoReplyDelayMinutes: 10,
+    linkedinEnabled: true,
   })
   const { toast } = useToast()
 
@@ -120,6 +121,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
       autopilotEnabled: data.campaign.autopilotEnabled,
       autoReplyEnabled: data.campaign.autoReplyEnabled,
       autoReplyDelayMinutes: data.campaign.autoReplyDelayMinutes,
+      linkedinEnabled: data.campaign.linkedinEnabled,
     })
   }, [id])
 
@@ -215,6 +217,13 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
         <CardContent className="flex flex-wrap items-center gap-3 p-5">
           <Badge variant="outline" className={stateBadgeClass(campaign.state)}>
             {STATE_LABELS[campaign.state] ?? campaign.state}
+          </Badge>
+          <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+            <Mail className="mr-1 h-3 w-3" />
+            {campaign.emailTouches} email
+            <span className="mx-1 text-sky-300">·</span>
+            <Linkedin className="mr-1 h-3 w-3" />
+            {campaign.linkedinTouches} LinkedIn
           </Badge>
           <div className="min-w-0 flex-1 text-sm text-muted-foreground">{campaign.nextAction}</div>
           <div className="flex flex-wrap gap-2">
@@ -718,6 +727,12 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">Auto-replies</Label>
                   <Switch checked={settings.autoReplyEnabled} onCheckedChange={(v) => setSettings({ ...settings, autoReplyEnabled: v })} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5 text-sm">
+                    <Linkedin className="h-3.5 w-3.5 text-sky-600" /> LinkedIn touches
+                  </Label>
+                  <Switch checked={settings.linkedinEnabled} onCheckedChange={(v) => setSettings({ ...settings, linkedinEnabled: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">Reply delay (min)</Label>

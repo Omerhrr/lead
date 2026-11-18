@@ -32,6 +32,12 @@ Everything shipped for this project, newest last.
   ("On — 7 digests sent · last 11:15 PM") with the Pause digest button.
 - `autogtm-round6-unsubscribe.png` — one-click unsubscribe confirmation page:
   emerald "Unsubscribed" badge naming the removed address.
+- `autogtm-round7-team.png` — Team view: owner card, invite pending with
+  Accept, active member holding a LinkedIn seat, invite form, seat summary.
+- `autogtm-round7-channel-mix.png` — campaign header channel-mix badge
+  ("64 email · 7 LinkedIn") with Export CSV / Export PDF actions.
+- `autogtm-round7-linkedin-toggle.png` — Settings tab: "LinkedIn touches"
+  switch alongside Autopilot and Auto-replies.
 - `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
   (funnel tiles, split-test arms, tracked links, next action).
 - `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.
@@ -194,3 +200,48 @@ rounds 3/4/5 suites re-run afterwards — all still pass.
   stats. 8 assertions.
 - Quality gates re-run: `tsc --noEmit` clean, `eslint src` clean, dev log
   error-free.
+
+## 7. Verification evidence (round 7)
+
+`scripts/verify_round7.ts` (run with `bun`) — 41/41 assertions pass;
+rounds 3/4/5/6 suites re-run afterwards — all still pass.
+
+- **LinkedIn touches as a first-class channel** — the engine already mixed
+  LinkedIn touches into follow-ups (30% per follow-up for leads with a
+  profile URL, billed $0.12/touch against $29/seat months); round 7 made the
+  channel controllable and visible: campaigns gain a `linkedinEnabled` flag
+  (PATCH round-trip verified), the Settings tab gets a "LinkedIn touches"
+  switch, the engine gates the channel roll on the flag (OFF is deterministic
+  email — first touch and forced follow-up asserted), ON produces real
+  `channel="linkedin"` messages (no subject line, no unsubscribe footer), the
+  campaign API exposes the channel mix (`emailTouches` / `linkedinTouches`,
+  verified against the database) and the detail header shows an
+  "N email · N LinkedIn" badge. Usage rows and the credit ledger bill the
+  touches. 12 assertions.
+- **Team / workspace seats** — new `TeamMember` model + `/api/team` routes:
+  invite (email normalization, duplicate/self/invalid guards), accept
+  (invited → active, double-accept rejected), role management (owner reserved;
+  member/viewer), LinkedIn seat assignment bound to the billing account's
+  seat count (over-assign rejected, free + re-assign verified), removal,
+  401 without session. The new Team view in the sidebar renders the owner
+  card, pending invites with Accept, seat badges and the invite form. 20
+  assertions.
+- **Deployable-template packaging** — `.env.example` documenting every env
+  var (DATABASE_URL, APP_URL, Resend key/from/webhook secret, SMTP set,
+  REPORT_INTERVAL_MS), three-stage `Dockerfile` on `oven/bun:1` (standalone
+  output, prisma generate at build, first-run `prisma db push`, /app/db
+  volume, EXPOSE 3000), `.dockerignore`, root `README.md` with quickstart,
+  env table, Docker + bare-Bun deploy and the feature map, `db:seed` npm
+  script. 9 assertions.
+- Quality gates re-run: `tsc --noEmit` clean, `eslint src` clean, dev log
+  error-free.
+
+Screenshots (in this folder):
+
+- `autogtm-round7-team.png` — Team view: owner card, invite pending with
+  Accept, active member holding a LinkedIn seat, invite form, seat summary
+  ("LinkedIn seats: 1/1 assigned · 0 available").
+- `autogtm-round7-channel-mix.png` — campaign header with the channel-mix
+  badge ("64 email · 7 LinkedIn") next to the state badge and Export buttons.
+- `autogtm-round7-linkedin-toggle.png` — Settings tab with the "LinkedIn
+  touches" switch in the autopilot card.

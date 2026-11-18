@@ -538,7 +538,7 @@ async function campaignCapacity(campaignId: string, projectId: string) {
 }
 
 async function advanceCampaign(
-  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string; userId: string } },
+  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; linkedinEnabled: boolean; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string; userId: string } },
   account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
   pulse: { sent: number; replies: number; booked: number; spent: number }
 ) {
@@ -644,7 +644,7 @@ async function advanceCampaign(
     const seatDue = account.linkedinSeatBilledMonth !== monthStr()
     const seatCost = account.linkedinSeats * LINKEDIN_SEAT_PRICE_USD
     const seatAffordable = !seatDue || account.prepaidBalanceUsd >= seatCost + perSendCost
-    const useLinkedin = !!lead.linkedinUrl && lead.touchCount >= 1 && seatAffordable && Math.random() < 0.3
+    const useLinkedin = !!lead.linkedinUrl && lead.touchCount >= 1 && seatAffordable && campaign.linkedinEnabled && Math.random() < 0.3
     const channel = useLinkedin ? "linkedin" : "email"
     const touchIndex = lead.touchCount + 1
 
