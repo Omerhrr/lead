@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
+import { logAudit } from "@/lib/audit"
 
 export const dynamic = "force-dynamic"
 
@@ -53,6 +54,14 @@ export async function POST(req: NextRequest) {
   const member = await db.teamMember.create({
     data: { ownerId: user.id, email, name, role, status: "invited" },
   })
+  await logAudit({
+    ownerId: user.id,
+    actorEmail: user.email,
+    actorName: user.name ?? "",
+    action: "team.invited",
+    target: email,
+    detail: `role ${role}`,
+  })
   return Response.json({ ok: true, member })
 }
 
@@ -71,6 +80,13 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ error: `${member.email} already accepted the invite` }, { status: 400 })
     }
     await db.teamMember.update({ where: { id: member.id }, data: { status: "active" } })
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "team.accepted",
+      target: member.email,
+    })
   } else if (body.action === "seat_on") {
     if (member.linkedinSeat) {
       return Response.json({ error: `${member.email} already holds a LinkedIn seat` }, { status: 400 })
@@ -84,14 +100,36 @@ export async function PATCH(req: NextRequest) {
       )
     }
     await db.teamMember.update({ where: { id: member.id }, data: { linkedinSeat: true } })
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "team.seat_assigned",
+      target: member.email,
+    })
   } else if (body.action === "seat_off") {
     if (!member.linkedinSeat) {
       return Response.json({ error: `${member.email} holds no LinkedIn seat` }, { status: 400 })
     }
     await db.teamMember.update({ where: { id: member.id }, data: { linkedinSeat: false } })
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "team.seat_freed",
+      target: member.email,
+    })
   } else if (typeof body.role === "string") {
     if (!ROLES.includes(body.role)) return Response.json({ error: "Invalid role" }, { status: 400 })
     await db.teamMember.update({ where: { id: member.id }, data: { role: body.role } })
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "team.role_changed",
+      target: member.email,
+      detail: `role ${member.role} -> ${body.role}`,
+    })
   } else {
     return Response.json({ error: "Nothing to update" }, { status: 400 })
   }
@@ -106,5 +144,12 @@ export async function DELETE(req: NextRequest) {
   const member = await db.teamMember.findFirst({ where: { id, ownerId: user.id } })
   if (!member) return Response.json({ error: "Team member not found" }, { status: 404 })
   await db.teamMember.delete({ where: { id } })
+  await logAudit({
+    ownerId: user.id,
+    actorEmail: user.email,
+    actorName: user.name ?? "",
+    action: "team.removed",
+    target: member.email,
+  })
   return Response.json({ ok: true })
 }

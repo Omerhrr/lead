@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
 import { campaignAction, generateLeadPool } from "@/lib/engine"
+import { logAudit } from "@/lib/audit"
 
 export const dynamic = "force-dynamic"
 
@@ -126,6 +127,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!result.ok && "error" in result) {
         return Response.json({ error: result.error }, { status: 400 })
       }
+      await logAudit({
+        ownerId: user.id,
+        actorEmail: user.email,
+        actorName: user.name ?? "",
+        action: "campaign.updated",
+        target: campaign.name,
+        detail: `action ${action}`,
+      })
       return Response.json({ ok: true })
     }
     default:

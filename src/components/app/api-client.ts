@@ -155,6 +155,7 @@ export interface MessageRow {
   clicks: number
   variantId: string | null
   deliveryStatus: string
+  provider: string | null
   createdAt: string
   lead?: { name: string; company: string }
 }

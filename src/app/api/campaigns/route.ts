@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
 import { nlToFilters, generateCampaignCopy } from "@/lib/ai"
 import { generateLeadPool } from "@/lib/engine"
+import { logAudit } from "@/lib/audit"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -125,6 +126,14 @@ export async function POST(req: NextRequest) {
 
   // AI stage 3: lead pool generation from the B2B database
   const poolSize = await generateLeadPool(campaign.id)
+  await logAudit({
+    ownerId: user.id,
+    actorEmail: user.email,
+    actorName: user.name ?? "",
+    action: "campaign.created",
+    target: brief.name,
+    detail: `${poolSize} leads in pool`,
+  })
 
   const fresh = await db.campaign.findUnique({ where: { id: campaign.id } })
   return Response.json({ campaign: fresh, poolSize, filters })

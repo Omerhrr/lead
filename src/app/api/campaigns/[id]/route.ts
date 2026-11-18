@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
+import { generateVariantAlternative } from "@/lib/ai"
+import { logAudit } from "@/lib/audit"
 import { allowedActions } from "@/lib/constants"
 import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
-import { generateVariantAlternative } from "@/lib/ai"
 
 export const dynamic = "force-dynamic"
 
@@ -160,6 +161,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof updatePayload.dailyBudgetUsd === "string") updatePayload.dailyBudgetUsd = Number(updatePayload.dailyBudgetUsd)
 
   await db.campaign.update({ where: { id }, data: updatePayload })
+
+  // channel-governance change is worth the audit trail (only when it flips)
+  if (
+    typeof updatePayload.linkedinEnabled === "boolean" &&
+    updatePayload.linkedinEnabled !== existing.linkedinEnabled
+  ) {
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "campaign.updated",
+      target: existing.name,
+      detail: `LinkedIn touches ${updatePayload.linkedinEnabled ? "enabled" : "disabled"}`,
+    })
+  }
 
   // enabling a split test seeds arms from the current copy so the test is
   // live instantly; a lone leftover arm is topped up with an AI alternative

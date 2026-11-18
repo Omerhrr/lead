@@ -861,6 +861,11 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                                 clicked
                               </span>
                             )}
+                            {m.direction === "out" && m.deliveryStatus === "delivered" && m.provider && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 align-middle">
+                                via {m.provider === "linkedin" ? "LinkedIn API" : m.provider}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">{m.body.slice(0, 200)}</div>
                         </div>

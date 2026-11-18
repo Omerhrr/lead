@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
+import { logAudit } from "@/lib/audit"
 
 export const dynamic = "force-dynamic"
 
@@ -55,5 +56,15 @@ export async function PATCH(req: NextRequest) {
   if (typeof body?.postpaidEnabled === "boolean") data.postpaidEnabled = body.postpaidEnabled
 
   await db.billingAccount.update({ where: { id: account.id }, data })
+  if (typeof data.linkedinSeats === "number" && data.linkedinSeats !== account.linkedinSeats) {
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "billing.seats_changed",
+      target: "LinkedIn seats",
+      detail: `${account.linkedinSeats} -> ${data.linkedinSeats} seat${data.linkedinSeats === 1 ? "" : "s"}`,
+    })
+  }
   return Response.json({ ok: true })
 }

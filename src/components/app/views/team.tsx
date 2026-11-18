@@ -7,8 +7,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { Check, Linkedin, MailPlus, Trash2, UserPlus, Users } from "lucide-react"
+import { Check, Linkedin, MailPlus, ScrollText, Trash2, UserPlus, Users } from "lucide-react"
 import { api, patch, post, del, type TeamResponse } from "../api-client"
+
+interface AuditEventRow {
+  id: string
+  actorName: string
+  actorEmail: string
+  action: string
+  target: string | null
+  detail: string | null
+  createdAt: string
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  "team.invited": "invited",
+  "team.accepted": "accepted invite",
+  "team.role_changed": "changed role of",
+  "team.seat_assigned": "assigned a LinkedIn seat to",
+  "team.seat_freed": "freed the LinkedIn seat of",
+  "team.removed": "removed",
+  "campaign.created": "created campaign",
+  "campaign.updated": "updated campaign",
+  "billing.seats_changed": "billing — seats changed",
+}
 
 const ROLE_BADGE: Record<string, string> = {
   owner: "bg-emerald-100 text-emerald-700",
@@ -18,6 +40,7 @@ const ROLE_BADGE: Record<string, string> = {
 
 export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void }) {
   const [data, setData] = useState<TeamResponse | null>(null)
+  const [audit, setAudit] = useState<AuditEventRow[]>([])
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [role, setRole] = useState("member")
@@ -27,6 +50,8 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
   const load = useCallback(async () => {
     const d = await api<TeamResponse>("/api/team")
     setData(d)
+    const a = await api<{ events: AuditEventRow[] }>("/api/audit?limit=12")
+    setAudit(a.events)
   }, [])
 
   useEffect(() => {
@@ -202,6 +227,37 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
         LinkedIn seats: {seats.seatsUsed}/{seats.linkedinSeats} assigned · {seats.seatsAvailable} available ·
         extra seats are billed {`$29`}/seat monthly in Billing.
       </p>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ScrollText className="h-4 w-4 text-emerald-600" /> Activity log
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {audit.length === 0 ? (
+            <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+              Nothing yet — invites, role and seat changes, campaign lifecycle and billing edits land here.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {audit.map((ev) => (
+                <div key={ev.id} className="flex items-baseline justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium">{ev.actorName}</span>{" "}
+                    <span className="text-muted-foreground">{ACTION_LABEL[ev.action] ?? ev.action}</span>{" "}
+                    {ev.target && <span className="font-medium">{ev.target}</span>}
+                    {ev.detail && <span className="text-muted-foreground"> — {ev.detail}</span>}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

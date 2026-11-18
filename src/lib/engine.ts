@@ -16,6 +16,7 @@ import {
   REPORT_INTERVAL_MS,
 } from "@/lib/constants"
 import { deliverOutreach, isProviderConfigured } from "@/lib/email-provider"
+import { deliverLinkedInTouch, isLinkedinConfigured } from "@/lib/linkedin-provider"
 import { suppressLeadOptOut } from "@/lib/unsubscribe"
 import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
 import type { LeadFilters } from "@/lib/ai"
@@ -693,6 +694,7 @@ async function advanceCampaign(
     // Message row is created first so the open-tracking pixel URL can
     // reference its id, then real delivery happens and the row is updated.
     const providerLive = isProviderConfigured()
+    const linkedinLive = channel === "linkedin" && isLinkedinConfigured()
     const msg = await db.message.create({
       data: {
         campaignId: campaign.id,
@@ -705,7 +707,8 @@ async function advanceCampaign(
         body,
         status: "sent", // provisional; finalized below
         variantId: variant?.id ?? null,
-        deliveryStatus: channel === "email" && providerLive ? "pending" : "simulated",
+        deliveryStatus:
+          (channel === "email" && providerLive) || linkedinLive ? "pending" : "simulated",
         provider: null,
       },
     })
@@ -763,6 +766,23 @@ async function advanceCampaign(
           provider: delivery.provider,
           providerMessageId: delivery.id ?? null,
           status: delivery.deliveryStatus === "failed" ? "bounced" : "sent",
+        },
+      })
+    } else if (linkedinLive) {
+      // real LinkedIn touch — DM shape: no subject, no unsubscribe footer.
+      // API failures are retryable (unlike an SMTP hard bounce) so the message
+      // stays "sent" and only the deliveryStatus records the failure.
+      const delivery = await deliverLinkedInTouch({
+        memberUrl: lead.linkedinUrl ?? "",
+        senderName: campaign.project.senderName,
+        text: body,
+      })
+      await db.message.update({
+        where: { id: msg.id },
+        data: {
+          deliveryStatus: delivery.deliveryStatus,
+          provider: delivery.provider,
+          providerMessageId: delivery.id ?? null,
         },
       })
     } else if (channel === "email" && Math.random() < 0.03) {

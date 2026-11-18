@@ -41,6 +41,8 @@ you through your company profile and first campaign.
 | `RESEND_FROM` | no | Verified sender identity, e.g. `Riley <riley@yourbrand.io>` |
 | `RESEND_WEBHOOK_SECRET` | no | Svix secret verifying `POST /api/webhooks/resend` (bounces/complaints auto-suppress) |
 | `SMTP_HOST/PORT/USER/PASS/FROM` | no | Generic SMTP fallback delivery |
+| `LINKEDIN_ACCESS_TOKEN` | no | Enables real LinkedIn touches over the LinkedIn API (`POST /v2/ugcPosts`) |
+| `LINKEDIN_API_URL` | no | LinkedIn API base override (E2E mock testing) |
 | `REPORT_INTERVAL_MS` | no | Digest interval (default 120000 = demo-compressed week) |
 
 Without any provider the app runs in simulation mode: the engine still schedules touches, replies and
@@ -108,6 +110,9 @@ bun scripts/verify_round4.ts   # CTA clicks, CSV export, webhooks
 bun scripts/verify_round5.ts   # per-link CTR, PDF report, bounce suppression
 bun scripts/verify_round6.ts   # unsubscribe, digest, domain warming
 bun scripts/verify_round7.ts   # LinkedIn toggle, team seats, template packaging
+bun scripts/verify_round8.ts   # LinkedIn API adapter, workspace audit trail
 ```
 
-`bunx tsc --noEmit` and `bunx eslint src` must stay clean.
+`bunx tsc --noEmit` and `bunx eslint src` must stay clean. The same matrix
+(type-check, lint, all six suites against a fresh dev server) runs in CI on
+every push — see `.github/workflows/ci.yml`.

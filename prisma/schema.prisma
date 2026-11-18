@@ -24,6 +24,7 @@ model User {
   projects  Project[]
   suppress   SuppressEntry[]
   teamMembers TeamMember[] @relation("TeamOwner")
+  auditEvents AuditEvent[]
 }
 
 // Workspace seats ("team" in the real product): collaborators invited to the
@@ -266,6 +267,21 @@ model SuppressEntry {
   reason   String? // hard bounce | spam complaint | unsubscribe | manual
   createdAt DateTime @default(now())
   @@unique([userId, type, value])
+}
+
+// Per-member audit trail: who did what across the workspace (team actions,
+// campaign lifecycle, billing changes). The Team view renders the log.
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String   // the workspace owner this event belongs to
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actorEmail String
+  actorName  String
+  action    String   // team.invited | team.accepted | team.role_changed | team.seat_assigned | team.seat_freed | team.removed | campaign.created | campaign.updated | billing.seats_changed
+  target    String?  // what the action hit (member email, campaign name, ...)
+  detail    String?  // free-form context (e.g. "role member -> viewer")
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
 }
 
 // Simulated B2B database ("105M companies" in the real product)

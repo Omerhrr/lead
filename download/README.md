@@ -38,6 +38,12 @@ Everything shipped for this project, newest last.
   ("64 email · 7 LinkedIn") with Export CSV / Export PDF actions.
 - `autogtm-round7-linkedin-toggle.png` — Settings tab: "LinkedIn touches"
   switch alongside Autopilot and Auto-replies.
+- `autogtm-round8-linkedin-api.png` — campaign Activity feed with violet
+  "via LinkedIn API" chips on the delivered LinkedIn DMs (channel-mix badge
+  "17 email · 2 LinkedIn" in the header).
+- `autogtm-round8-audit.png` — Team view with the new Activity log card:
+  invites, invite acceptance, seat assignments and role changes with actor,
+  target and time per row.
 - `autogtm-campaign-report-sample.pdf` — one-page PDF summary report sample
   (funnel tiles, split-test arms, tracked links, next action).
 - `autogtm-campaign-report-sample.csv` — lead-level CSV report sample.
@@ -245,3 +251,49 @@ Screenshots (in this folder):
   badge ("64 email · 7 LinkedIn") next to the state badge and Export buttons.
 - `autogtm-round7-linkedin-toggle.png` — Settings tab with the "LinkedIn
   touches" switch in the autopilot card.
+
+## 8. Verification evidence (round 8)
+
+`scripts/verify_round8.ts` (run with `bun`) — 55/55 assertions pass;
+rounds 3/4/5/6/7 suites re-run afterwards against a clean server — all still
+pass (21/22/21/32/45 PASS, 0 FAIL).
+
+- **Real LinkedIn API adapter** — `src/lib/linkedin-provider.ts`, the channel
+  twin of the email provider hook: set `LINKEDIN_ACCESS_TOKEN` and every
+  LinkedIn DM is handed to the LinkedIn API (`POST /v2/ugcPosts`,
+  `LINKEDIN_API_URL` override for testing); without a token touches stay
+  simulated. Module-level checks cover null/simulated default, delivered with
+  the API's URN id, request payload shape (recipient/sender/text) and the 500
+  → `failed` mapping. The engine now marks LinkedIn touches `pending` and
+  records `deliveryStatus/provider/providerMessageId` on the message row
+  (API failures are retryable, so status stays `sent`). The campaign Activity
+  feed shows a violet "via LinkedIn API" chip on delivered DMs, and the
+  E2E run asserted a real delivered touch end to end against a local mock
+  API while email touches stayed simulated in the same run. 17 assertions.
+- **Workspace audit trail** — new `AuditEvent` model + `logAudit` helper
+  (fire-and-forget): team actions (invited / accepted / role_changed /
+  seat_assigned / seat_freed / removed), campaign lifecycle (created /
+  updated incl. the LinkedIn channel toggle and start/stop actions) and
+  billing seat changes land as rows with actor, target and detail. New
+  `GET /api/audit` (401 unauthenticated, limit param, newest-first) and an
+  "Activity log" card on the Team view. 31 assertions.
+- **CI pipeline** — `.github/workflows/ci.yml` runs on push/PR: bun setup,
+  prisma db push + seed, `tsc --noEmit`, `eslint src`, then all six verify
+  suites as separate steps against a freshly started dev server (simulation
+  mode). YAML validated by a real parser in the E2E. Docs updated:
+  `.env.example` + README environment table document the LinkedIn adapter
+  vars, README records the round-8 suite and the CI matrix. 7 assertions.
+- Quality gates re-run: `tsc --noEmit` clean, `eslint src` clean, dev log
+  error-free. Harness note: the dev server only lives inside a single tool
+  call in this sandbox, so `scripts/devctl.sh` boots/stops it per work block
+  and `turbopackFileSystemCacheForDev: false` keeps the persistent Turbopack
+  cache from corrupting on those hard stops.
+
+Screenshots (in this folder):
+
+- `autogtm-round8-linkedin-api.png` — Activity feed of the adapter demo
+  campaign: LinkedIn touch rows carry the "via LinkedIn API" chip, email
+  rows keep the unsubscribe footer; header shows "17 email · 2 LinkedIn".
+- `autogtm-round8-audit.png` — Team view with the Activity log card showing
+  the full trail (invites with role, acceptance, seat assignment/freeing,
+  role change viewer -> member, removal) with actor + timestamp per row.
