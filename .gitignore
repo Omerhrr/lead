@@ -58,3 +58,13 @@ server.log
 /skills/
 # local-only rebrand research artifact
 download/REA_Research_Report.docx
+
+# sandbox runtime files (kept on disk for the dev environment, not part of the app)
+/.zscripts/
+/mini-services/
+/tool-results/
+/examples/
+/Caddyfile
+/tests/database-runtime-build.sh
+/tests/python-runtime-build.sh
+/tests/python-runtime-container.sh
