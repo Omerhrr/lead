@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# REA research scratch (captured site payloads — kept locally only, too large for git)
+explee_analysis/
+
 
 # typescript
 *.tsbuildinfo
