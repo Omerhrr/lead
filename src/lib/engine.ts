@@ -19,6 +19,9 @@ import { deliverOutreach, isProviderConfigured } from "@/lib/email-provider"
 import { deliverLinkedInTouch, isLinkedinConfigured } from "@/lib/linkedin-provider"
 import { suppressLeadOptOut } from "@/lib/unsubscribe"
 import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
+import { verifyCampaignLeads } from "@/lib/verify-email"
+import { chargeFor, campaignSpendUsd } from "@/lib/billing-ops"
+import { langStrings } from "@/lib/i18n-copy"
 import type { LeadFilters } from "@/lib/ai"
 
 const FOLLOWUP_MS_PER_DAY = 10 * 1000 // 1 campaign day = 10s real time
@@ -172,6 +175,10 @@ export async function generateLeadPool(campaignId: string) {
     },
   })
 
+  // pre-send mailbox verification runs as soon as the pool exists, so the
+  // review screen shows valid/risky/invalid badges before anything is approved
+  await verifyCampaignLeads(campaignId)
+
   return chosen.length
 }
 
@@ -187,50 +194,35 @@ export function fillCopy(tpl: string, lead: { name: string; company: string; rea
 
 // ------------------------------------------------------------------ billing
 
-async function charge(accountId: string, costUsd: number, description: string, opts: { emails: number; linkedin: number }) {
-  const account = await db.billingAccount.findUnique({ where: { id: String(accountId) } })
-  if (!account) return
-  await db.billingAccount.update({
-    where: { id: account.id },
-    data: {
-      prepaidBalanceUsd: account.prepaidBalanceUsd - costUsd,
-      spentTodayUsd: account.spentTodayUsd + costUsd,
-      spentThisMonthUsd: account.spentThisMonthUsd + costUsd,
-    },
-  })
-  await db.creditTransaction.create({
-    data: {
-      accountId: account.id,
-      type: "spend",
-      amountUsd: -costUsd,
-      balanceAfter: account.prepaidBalanceUsd - costUsd,
-      description,
-    },
-  })
-  const date = todayStr()
-  const existing = await db.usageDaily.findUnique({
-    where: { accountId_date: { accountId: account.id, date } },
-  })
-  if (existing) {
-    await db.usageDaily.update({
-      where: { id: existing.id },
-      data: {
-        emailsSent: existing.emailsSent + opts.emails,
-        linkedinTouches: existing.linkedinTouches + opts.linkedin,
-        spendUsd: existing.spendUsd + costUsd,
-      },
-    })
-  } else {
-    await db.usageDaily.create({
-      data: {
-        accountId: account.id,
-        date,
-        emailsSent: opts.emails,
-        linkedinTouches: opts.linkedin,
-        spendUsd: costUsd,
-      },
-    })
-  }
+// Thin wrapper: all engine metering flows through the shared chargeFor op
+// (campaign attribution enables per-campaign cost-per-lead reporting).
+async function charge(
+  accountId: string,
+  costUsd: number,
+  description: string,
+  opts: { emails: number; linkedin: number; campaignId?: string }
+) {
+  await chargeFor(accountId, costUsd, "spend", description, opts)
+}
+
+// Once-per-warm-lead success fee under per-result pricing. The account row is
+// refetched so concurrent charges never overdraw the prepaid balance.
+async function chargeWarmLeadFee(
+  account: { id: string; pricingModel: string; warmLeadFeeUsd: number },
+  campaign: { id: string; name: string },
+  lead: { id: string; name: string; company: string; successFeeCharged: boolean }
+) {
+  if (account.pricingModel !== "per_result" || lead.successFeeCharged) return
+  const fresh = await db.billingAccount.findUnique({ where: { id: account.id } })
+  if (!fresh || fresh.prepaidBalanceUsd < fresh.warmLeadFeeUsd) return
+  await db.lead.update({ where: { id: lead.id }, data: { successFeeCharged: true } })
+  await chargeFor(
+    account.id,
+    fresh.warmLeadFeeUsd,
+    "warm_lead_fee",
+    `${campaign.name}: warm lead - ${lead.name} (${lead.company})`,
+    { campaignId: campaign.id }
+  )
 }
 
 async function ensureDailyReset(accountId: string) {
@@ -370,7 +362,7 @@ async function scheduledReportsPass(userId: string) {
     let touched = 0
     for (const c of project.campaigns) {
       if (c.state === "archived" || c.state === "draft") continue
-      const [leads, touches, inbound] = await Promise.all([
+      const [leads, touches, inbound, spend] = await Promise.all([
         db.lead.findMany({
           where: { campaignId: c.id },
           select: { id: true, status: true, isHot: true, convStatus: true },
@@ -380,9 +372,12 @@ async function scheduledReportsPass(userId: string) {
           select: { opens: true, clicks: true },
         }),
         db.message.findMany({ where: { campaignId: c.id, direction: "in" }, select: { leadId: true } }),
+        campaignSpendUsd(c.id),
       ])
       const approved = leads.filter((l) => l.status === "approved").length
       const repliedIds = new Set(inbound.map((m) => m.leadId))
+      const warm = leads.filter((l) => l.isHot || l.convStatus === "booked").length
+      const cpl = warm > 0 ? Math.round((spend / warm) * 100) / 100 : null
       const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "-")
       lines.push(
         `${c.name} (${c.state}): ${approved} approved · ${touches.length} touches · ` +
@@ -390,7 +385,8 @@ async function scheduledReportsPass(userId: string) {
           `${pct(touches.filter((m) => m.clicks > 0).length, touches.length)} clicked · ` +
           `${leads.filter((l) => repliedIds.has(l.id)).length} replies · ` +
           `${leads.filter((l) => l.isHot).length} hot · ` +
-          `${leads.filter((l) => l.convStatus === "booked").length} booked`
+          `${leads.filter((l) => l.convStatus === "booked").length} booked · ` +
+          `spend $${spend.toFixed(2)}${cpl !== null ? ` · $${cpl.toFixed(2)} per warm lead` : ""}`
       )
       touched++
     }
@@ -539,8 +535,8 @@ async function campaignCapacity(campaignId: string, projectId: string) {
 }
 
 async function advanceCampaign(
-  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; linkedinEnabled: boolean; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; project: { senderName: string; companyName: string; companyDomain: string; userId: string } },
-  account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string },
+  campaign: { id: string; projectId: string; maxTouches: number; delayDays: number; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; copySubject: string | null; copyBody: string | null; variantTest: boolean; ctaUrl: string | null; linkedinEnabled: boolean; dailyBudgetUsd: number; name: string; offer: string; customerProblem: string; language: string; verifyPolicy: string; project: { senderName: string; companyName: string; companyDomain: string; bookingUrl: string; userId: string } },
+  account: { id: string; prepaidBalanceUsd: number; spentTodayUsd: number; spentThisMonthUsd: number; monthlyCapUsd: number; dailyBudgetUsd: number; emailPriceUsd: number; linkedinSeats: number; linkedinSeatBilledMonth: string; pricingModel: string; warmLeadFeeUsd: number },
   pulse: { sent: number; replies: number; booked: number; spent: number }
 ) {
   const now = new Date()
@@ -565,7 +561,7 @@ async function advanceCampaign(
       where: { campaignId: campaign.id, agentDueAt: { lte: now }, agentStage: { not: null }, convStatus: { in: ["interested", "negotiating", "question", "propose"] } },
     })
     for (const lead of agentDue.slice(0, 3)) {
-      await processAutopilot(campaign, lead)
+      await processAutopilot(campaign, lead, account)
     }
   }
 
@@ -606,12 +602,20 @@ async function advanceCampaign(
     return
   }
 
-  // 4) sends (first touches + follow-ups)
+  // 4) sends (first touches + follow-ups). The mailbox verification policy
+  // gates the queue: addresses found risky/invalid pre-send never get a send.
+  const verifyFilter: Record<string, Record<string, string | string[]>> =
+    campaign.verifyPolicy === "send_all"
+      ? {}
+      : campaign.verifyPolicy === "skip_invalid_risky"
+        ? { verifyStatus: { notIn: ["invalid", "risky"] } }
+        : { verifyStatus: { not: "invalid" } }
   const eligible = await db.lead.findMany({
     where: {
       campaignId: campaign.id,
       status: "approved",
       convStatus: null,
+      ...verifyFilter,
       OR: [
         { touchCount: 0 },
         { nextTouchAt: { lte: now }, touchCount: { lt: campaign.maxTouches } },
@@ -663,16 +667,14 @@ async function advanceCampaign(
     }
 
     const baseSubject = variant?.subject ?? campaign.copySubject ?? "Quick question"
+    const loc = langStrings(campaign.language)
     const subject = isFollowup
-      ? touchIndex === 2
-        ? `Re: ${baseSubject.replace(/^Re:\s*/i, "")}`
-        : `Following up (last one, promise)`
+      ? loc.followupSubject(baseSubject.replace(/^(Re:|AW:|Re :|回复：|رد:)\s*/i, ""), touchIndex)
       : baseSubject
     const bodyTpl = variant?.body ?? campaign.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`
     let body = fillCopy(bodyTpl, lead, campaign.project.senderName)
     if (isFollowup) {
-      body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox - happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
-      if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way - good luck with ${lead.company}!`
+      body = loc.followup(lead.name.split(" ")[0], lead.reasons || "this", lead.company, touchIndex >= campaign.maxTouches)
     }
     // tracked CTA link - appended to every email touch so clicks are measurable
     const ctaUrl = campaign.ctaUrl && /^https?:\/\//i.test(campaign.ctaUrl) ? campaign.ctaUrl : null
@@ -818,7 +820,7 @@ async function advanceCampaign(
     const cost = emails * perSendCost + linkedin * LINKEDIN_TOUCH_PRICE_USD
     let description = `${campaign.name}: ${emails} email${emails === 1 ? "" : "s"} sent`
     if (linkedin > 0) description += `, ${linkedin} LinkedIn touch${linkedin === 1 ? "" : "es"}`
-    await charge(account.id, cost, description, { emails, linkedin })
+    await charge(account.id, cost, description, { emails, linkedin, campaignId: campaign.id })
     pulse.sent += emails
     pulse.spent += cost
 
@@ -878,9 +880,9 @@ async function advanceCampaign(
 // -------------------------------------------------------- inbound processing
 
 async function processInbound(
-  campaign: { id: string; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; project: { userId: string } },
-  lead: { id: string; name: string; company: string; email: string; convStatus: string | null; replyChannel: string | null },
-  account: { id: string }
+  campaign: { id: string; name: string; autopilotEnabled: boolean; autoReplyEnabled: boolean; autoReplyDelayMinutes: number; project: { userId: string } },
+  lead: { id: string; name: string; company: string; email: string; convStatus: string | null; replyChannel: string | null; successFeeCharged: boolean },
+  account: { id: string; pricingModel: string; warmLeadFeeUsd: number }
 ) {
   const now = new Date()
   let outcome: string
@@ -952,14 +954,20 @@ async function processInbound(
   }
 
   await db.lead.update({ where: { id: lead.id }, data: updates })
+  // per-result pricing: a warm lead (interested / negotiating / booked) bills
+  // its success fee exactly once
+  if (hot || outcome === "booked_confirm") {
+    await chargeWarmLeadFee(account, campaign, lead)
+  }
   await noteReplyEvent(account.id, hot)
 }
 
 // ------------------------------------------------------ autopilot processing
 
 async function processAutopilot(
-  campaign: { id: string; autoReplyDelayMinutes: number; offer: string; customerProblem: string; project: { companyName: string; senderName: string } },
-  lead: { id: string; name: string; company: string; convStatus: string | null; agentStage: string | null; meetingAt: Date | null; replyChannel: string | null }
+  campaign: { id: string; name: string; autoReplyDelayMinutes: number; offer: string; customerProblem: string; project: { companyName: string; senderName: string; bookingUrl: string } },
+  lead: { id: string; name: string; company: string; convStatus: string | null; agentStage: string | null; meetingAt: Date | null; replyChannel: string | null; successFeeCharged: boolean },
+  account: { id: string; pricingModel: string; warmLeadFeeUsd: number }
 ) {
   const now = new Date()
   const stage = lead.agentStage as "propose_meeting" | "confirm" | "answer"
@@ -972,7 +980,7 @@ async function processAutopilot(
   })
 
   const slot = `${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][randInt(0, 4)]}, ${["10:00", "11:30", "14:00", "15:30"][randInt(0, 3)]}`
-  const text = await autopilotReply({
+  let text = await autopilotReply({
     companyName,
     offer: campaign.offer,
     customerProblem: campaign.customerProblem,
@@ -982,6 +990,11 @@ async function processAutopilot(
     stage,
     slot,
   })
+  // confirm stage carries the calendar booking link so the lead can grab the
+  // invite; the meeting itself lands on the workspace as an .ics-downloadable row
+  if (stage === "confirm") {
+    text += `\n\nCalendar invite: ${campaign.project.bookingUrl}`
+  }
 
   await db.message.create({
     data: {
@@ -1013,6 +1026,19 @@ async function processAutopilot(
     updates.replyChannel = "email"
   }
   await db.lead.update({ where: { id: lead.id }, data: updates })
+  if (stage === "confirm") {
+    await db.meeting.create({
+      data: {
+        campaignId: campaign.id,
+        leadId: lead.id,
+        startsAt: (updates.meetingAt as Date) ?? new Date(now.getTime() + MEETING_LEAD_DAYS[0] * 24 * 3600 * 1000),
+        status: "confirmed",
+        bookingUrl: campaign.project.bookingUrl,
+        source: "autopilot",
+      },
+    })
+    await chargeWarmLeadFee(account, campaign, lead)
+  }
 }
 
 // ------------------------------------------------------- campaign actions
@@ -1119,6 +1145,21 @@ export async function manualReply(leadId: string, body: string) {
         meetingAt: new Date(now.getTime() + MEETING_LEAD_DAYS[randInt(0, 3)] * 24 * 3600 * 1000),
       },
     })
+    const meetingStart = await db.lead.findUnique({ where: { id: lead.id }, select: { meetingAt: true } })
+    await db.meeting.create({
+      data: {
+        campaignId: lead.campaignId,
+        leadId: lead.id,
+        startsAt: meetingStart?.meetingAt ?? new Date(now.getTime() + MEETING_LEAD_DAYS[0] * 24 * 3600 * 1000),
+        status: "confirmed",
+        bookingUrl: lead.campaign.project.bookingUrl || "https://cal.com/jidout-demo/intro",
+        source: "manual",
+      },
+    })
+    const manualAccount = await db.billingAccount.findUnique({ where: { userId: lead.campaign.project.userId } })
+    if (manualAccount) {
+      await chargeWarmLeadFee(manualAccount, lead.campaign, lead)
+    }
   } else if (roll < 0.75) {
     await db.message.create({
       data: {

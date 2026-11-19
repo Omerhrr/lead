@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
+import { campaignSpendUsd } from "@/lib/billing-ops"
 
 export const dynamic = "force-dynamic"
 
@@ -51,11 +52,17 @@ export async function GET(
     clickByLead.set(m.leadId, (clickByLead.get(m.leadId) ?? 0) + m.clicks)
   }
 
+  // per-campaign cost reporting: attributed ledger spend + cost per warm lead
+  const spendUsd = await campaignSpendUsd(id)
+  const warm = leads.filter((l) => l.isHot || l.convStatus === "booked").length
+  const cplUsd = warm > 0 ? Math.round((spendUsd / warm) * 100) / 100 : null
+
   const header = [
     "Lead", "Title", "Company", "Company domain", "Email", "Country",
     "Company size", "Score", "Status", "Variant", "Conversation",
     "Touches", "Opens", "Clicks", "Replied", "Hot", "Booked",
-    "Meeting at", "Sentiment", "Hook",
+    "Meeting at", "Sentiment", "Hook", "Verification", "Source",
+    "Campaign spend USD", "Cost per warm lead USD",
   ]
   const rows = leads.map((l) => {
     const inbound = l.convStatus !== null // lead spoke back
@@ -73,6 +80,10 @@ export async function GET(
       l.meetingAt ? l.meetingAt.toISOString().slice(0, 10) : "",
       l.sentiment ?? "",
       l.reasons ?? "",
+      `${l.verifyStatus}${l.verifyReason ? ` (${l.verifyReason})` : ""}`,
+      l.source,
+      spendUsd.toFixed(2),
+      cplUsd === null ? "" : cplUsd.toFixed(2),
     ].map(csvCell).join(",")
   })
 

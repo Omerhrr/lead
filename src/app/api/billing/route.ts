@@ -35,6 +35,8 @@ export async function GET() {
       linkedinSeats: account.linkedinSeats,
       linkedinSeatPriceUsd: account.linkedinSeatPriceUsd,
       postpaidEnabled: account.postpaidEnabled,
+      pricingModel: account.pricingModel,
+      warmLeadFeeUsd: account.warmLeadFeeUsd,
     },
     emailsRemaining,
     transactions,
@@ -49,13 +51,29 @@ export async function PATCH(req: NextRequest) {
   const account = await db.billingAccount.findUnique({ where: { userId: user.id } })
   if (!account) return Response.json({ error: "No billing account" }, { status: 400 })
 
-  const data: Record<string, number | boolean> = {}
+  const data: Record<string, number | boolean | string> = {}
   if (typeof body?.monthlyCapUsd === "number") data.monthlyCapUsd = Math.max(10, Math.min(5000, body.monthlyCapUsd))
   if (typeof body?.dailyBudgetUsd === "number") data.dailyBudgetUsd = Math.max(1, Math.min(500, body.dailyBudgetUsd))
   if (typeof body?.linkedinSeats === "number") data.linkedinSeats = Math.max(0, Math.min(10, Math.round(body.linkedinSeats)))
   if (typeof body?.postpaidEnabled === "boolean") data.postpaidEnabled = body.postpaidEnabled
+  if (body?.pricingModel === "per_action" || body?.pricingModel === "per_result") {
+    data.pricingModel = body.pricingModel
+  }
+  if (typeof body?.warmLeadFeeUsd === "number") {
+    data.warmLeadFeeUsd = Math.max(1, Math.min(20, body.warmLeadFeeUsd))
+  }
 
   await db.billingAccount.update({ where: { id: account.id }, data })
+  if (typeof data.pricingModel === "string" && data.pricingModel !== account.pricingModel) {
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "billing.pricing_changed",
+      target: "Pricing model",
+      detail: `${account.pricingModel} -> ${data.pricingModel}${data.pricingModel === "per_result" ? ` ($${Number(data.warmLeadFeeUsd ?? account.warmLeadFeeUsd).toFixed(2)} per warm lead)` : ""}`,
+    })
+  }
   if (typeof data.linkedinSeats === "number" && data.linkedinSeats !== account.linkedinSeats) {
     await logAudit({
       ownerId: user.id,

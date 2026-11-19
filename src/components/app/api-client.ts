@@ -58,6 +58,10 @@ export interface Lead {
   notes: string | null
   touchCount: number
   meetingAt: string | null
+  verifyStatus: string
+  verifyReason: string | null
+  source: string
+  successFeeCharged: boolean
   createdAt: string
 }
 
@@ -115,6 +119,7 @@ export interface CampaignDetail {
   instructions: string | null
   followupInstructions: string | null
   language: string
+  verifyPolicy: string
   maxTouches: number
   delayDays: number
   autopilotEnabled: boolean
@@ -138,6 +143,15 @@ export interface CampaignDetail {
   nextAction: string
   dailyBudgetUsd: number
   allowedActions: string[]
+  stats: {
+    spendUsd: number
+    warm: number
+    cplUsd: number | null
+    verifyValid: number
+    verifyRisky: number
+    verifyInvalid: number
+    verifyUnknown: number
+  }
   leads: Lead[]
   project: { companyName: string; senderName: string; companyDomain: string }
 }
@@ -168,6 +182,16 @@ export interface OverviewResponse {
     sendingNow: boolean
     nextAction: string
     createdAt: string
+    spendUsd: number
+    cplUsd: number | null
+  }>
+  meetings: Array<{
+    id: string
+    startsAt: string
+    status: string
+    leadName: string
+    leadCompany: string
+    campaignName: string
   }>
   stats: {
     emailsSent: number
@@ -207,17 +231,42 @@ export interface ConversationRow {
   lastMessage: { direction: string; body: string; createdAt: string } | null
 }
 
+export interface DnsRecord {
+  host: string
+  value: string
+}
+
+export interface DomainRow {
+  id: string
+  domain: string
+  source: string
+  status: string
+  emailsPerDay: number
+  warmedDays: number
+  mailboxes: number
+  createdAt: string
+  preWarmed: boolean
+  reputation: number
+  spfStatus: string
+  dkimStatus: string
+  dmarcStatus: string
+  dnsCheckedAt: string | null
+  dnsRecords: { spf: DnsRecord; dkim: DnsRecord; dmarc: DnsRecord }
+}
+
+export interface StoreListing {
+  name: string
+  reputation: number
+  warmedDays: number
+  emailsSent: number
+  mailboxAgeDays: number
+  priceUsd: number
+  rented: boolean
+}
+
 export interface DomainsResponse {
-  domains: Array<{
-    id: string
-    domain: string
-    source: string
-    status: string
-    emailsPerDay: number
-    warmedDays: number
-    mailboxes: number
-    createdAt: string
-  }>
+  domains: DomainRow[]
+  store: StoreListing[]
   plan: {
     targetEmailsPerDay: number
     emailsPerDomainDay: number
@@ -236,6 +285,8 @@ export interface BillingResponse {
   account: BillingSummary & {
     linkedinSeatPriceUsd: number
     postpaidEnabled: boolean
+    pricingModel: string
+    warmLeadFeeUsd: number
   }
   emailsRemaining: number
   transactions: Array<{
@@ -275,6 +326,29 @@ export interface TeamResponse {
   owner: { email: string; name: string | null }
   members: TeamMemberRow[]
   seats: { linkedinSeats: number; seatsUsed: number; seatsAvailable: number }
+}
+
+export interface ApiKeyRow {
+  id: string
+  name: string
+  prefix: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface ApiKeysResponse {
+  keys: ApiKeyRow[]
+}
+
+export interface CsvImportPreview {
+  headers: string[]
+  totalRows: number
+  importable: number
+  duplicateInFile: number
+  malformed: Array<{ row: number; reason: string }>
+  skipped: Array<{ email: string; reason: string }>
+  sample: Array<{ email: string; name: string; company: string; title: string; country: string }>
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {

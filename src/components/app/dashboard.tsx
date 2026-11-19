@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Layers, Inbox, Globe, Wallet, Compass, Users, LogOut, Plus } from "lucide-react"
+import { LayoutDashboard, Layers, Inbox, Globe, Wallet, Compass, Users, LogOut, Plus, KeyRound } from "lucide-react"
 import { api, post, type MeResponse, type OverviewResponse } from "./api-client"
 import { Onboarding } from "./onboarding"
 import { Overview } from "./views/overview"
@@ -12,10 +12,11 @@ import { DomainsView } from "./views/domains"
 import { BillingView } from "./views/billing"
 import { ExplorerView } from "./views/explorer"
 import { TeamView } from "./views/team"
+import { ApiView } from "./views/api"
 import { Logo } from "./landing"
 import { money } from "@/lib/constants"
 
-type View = "overview" | "campaigns" | "inbox" | "domains" | "billing" | "explorer" | "team" | "onboarding"
+type View = "overview" | "campaigns" | "inbox" | "domains" | "billing" | "explorer" | "team" | "api" | "onboarding"
 
 const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -25,6 +26,7 @@ const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard }> = [
   { id: "billing", label: "Billing", icon: Wallet },
   { id: "team", label: "Team", icon: Users },
   { id: "explorer", label: "Explorer", icon: Compass },
+  { id: "api", label: "Developers", icon: KeyRound },
 ]
 
 export function Dashboard({
@@ -233,6 +235,8 @@ export function Dashboard({
               <BillingView onChanged={refreshOverview} />
             ) : view === "team" ? (
               <TeamView onChanged={refreshOverview} />
+            ) : view === "api" ? (
+              <ApiView onChanged={refreshOverview} />
             ) : (
               <ExplorerView />
             )}

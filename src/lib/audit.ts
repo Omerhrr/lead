@@ -12,7 +12,14 @@ export type AuditAction =
   | "team.removed"
   | "campaign.created"
   | "campaign.updated"
+  | "campaign.verified"
+  | "campaign.imported"
+  | "domain.rented"
+  | "domain.dns_checked"
   | "billing.seats_changed"
+  | "billing.pricing_changed"
+  | "apikey.created"
+  | "apikey.revoked"
 
 export async function logAudit(input: {
   ownerId: string

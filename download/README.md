@@ -292,3 +292,76 @@ Screenshots (in this folder):
 - `jidout-round8-audit.png` - Team view with the Activity log card showing
   the full trail (invites with role, acceptance, seat assignment/freeing,
   role change viewer -> member, removal) with actor + timestamp per row.
+
+## 9. Verification evidence (round 9) - deliverability + inbound data
+
+Closing the gap to explee.com's deliverability stack, verified by
+`scripts/verify_round9.ts` (58 assertions):
+
+- **Pre-send mailbox verification** - every lead entering a pool is checked
+  (syntax, disposable domains, role accounts, catch-all/no-MX heuristics,
+  deterministic per address) and charged $0.005/check with a campaign-attributed
+  ledger row. The campaign policy gates the send queue: `skip_invalid` kept all
+  invalid mailboxes at zero touches, `skip_invalid_risky` stopped risky ones
+  too. Pool badges (valid/risky/invalid with reason) in the lead table.
+- **SPF/DKIM/DMARC authentication** - every domain gets its three expected DNS
+  records; the checker validates TXT records (sim mode deterministic, live mode
+  resolves real TXT via node:dns). Authenticated BYOD domains start warming;
+  failure paths verified on a fail-gate domain. Audited per check.
+- **Pre-warmed domain store** - six ready-to-send domains with reputation
+  92-98, warming age and send history; renting charges $12, flips the domain
+  active at full 40/day cap fully authenticated (no ramp). Duplicate/unknown
+  rents rejected.
+- **CSV lead list import** - dry-run preview with importable/duplicate-in-file/
+  malformed/skipped breakdown + sample table; commit creates source=csv leads
+  that are verified on entry; workspace duplicates and suppression-list domains
+  are skipped; importing into a sending campaign is rejected.
+
+Screenshots (in this folder):
+
+- `jidout-round9-domains-store-dns.png` - Domains view: pre-warmed store cards
+  (reputation, warming age, $12 Rent now, "ready to send on day one") and the
+  per-domain AUTHENTICATION rows with SPF/DKIM/DMARC pass chips + Check DNS.
+- `jidout-round9-verify-pool.png` - Lead pool with the Verified column (valid /
+  invalid badges + reason tooltips), Verify pool + Import CSV actions and the
+  "15 valid - 0 risky - 1 invalid" summary line.
+- `jidout-round9-csv-import.png` - CSV import dialog after a dry-run preview:
+  importable/duplicate/malformed/skipped badges and the sample row table.
+
+## 10. Verification evidence (round 10) - scale + monetization
+
+Closing the remaining explee gaps that are buildable, verified by
+`scripts/verify_round10.ts` (57 assertions):
+
+- **30 campaign languages** - language picker on every campaign (30 entries);
+  AI copy generation carries the language; the engine's deterministic
+  follow-ups are localized for 12 languages (German subject AW:/body asserted
+  in the suite) with English fallback for the rest.
+- **Calendar booking** - autopilot negotiation ends in a confirmed Meeting row
+  carrying the workspace booking URL, the reply contains the booking link,
+  meetings list on the overview with .ics download (`text/calendar`, 401
+  without session).
+- **Public API v1** - Bearer keys (sha256-hashed, shown once, prefix
+  jd_live_...), read-only endpoints for campaigns (funnel + spend + CPL),
+  leads (verification verdicts), meetings; 401 for missing/wrong/revoked keys,
+  rate-limit headers and a 429 past 60 req/min; key create/revoke audited.
+- **Cost per warm lead** - all ledger charges carry a campaignId: per-campaign
+  spend and CPL exactly match the ledger sum in the public API, overview rows,
+  CSV report column and the PDF report tile.
+- **Per-result pricing** - switch billing to a $1-20 success fee per warm lead:
+  exactly one warm_lead_fee charge per warm lead, flagged on the lead, included
+  in CPL spend; per-action mode charges nothing.
+
+Screenshots (in this folder):
+
+- `jidout-round10-language-settings.png` - Settings tab: "Campaign language
+  (30 available)" selector + "Mailbox verification policy" selector.
+- `jidout-round10-meetings-overview.png` - Overview: "Upcoming meetings" card
+  (confirmed meeting with .ics download icon) and per-campaign CPL rows.
+- `jidout-round10-billing-pricing.png` - Billing: "Pricing model" card with the
+  Per action / Per result choice and the success-fee input.
+- `jidout-round10-api-keys.png` - Developers view: API keys list with the
+  Zapier integration key and the API docs (v1) endpoint reference.
+
+Full QA: `scripts/qa_round10.sh` runs rounds 9 + 10 + the rounds 3-8
+regression (all eight suites), then tsc/eslint and the dev-log error gate.

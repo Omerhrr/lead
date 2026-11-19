@@ -1,34 +1,34 @@
-Lead,Title,Company,Company domain,Email,Country,Company size,Score,Status,Variant,Conversation,Touches,Opens,Clicks,Replied,Hot,Booked,Meeting at,Sentiment,Hook
-Sophie Novak,Co-Founder,Cala Derma Institute,caladerma.ae,sophie.novak@caladerma.ae,UAE,11-50,82,approved,B,,3,1,0,no,no,no,,,booked out 6 weeks for injectables
-Zoe Sullivan,Co-Founder,Ledgerline Advisory,ledgerline.cpa,zoe@ledgerline.cpa,United States,11-50,82,approved,A,,3,2,1,no,no,no,,,nearing tax season capacity
-Grace Foster,Co-Founder,Tidal & Co Media,tidalandco.com,grace@tidalandco.com,United States,11-50,82,approved,,closed,1,0,0,yes,no,no,,not_interested,client roster at 14 and growing
-Sarah Harlow,Founder & CEO,Shieldwall IT,shieldwallit.com,sarah@shieldwallit.com,United States,11-50,82,approved,B,,3,2,1,no,no,no,,,security practice growing fast
-Chloe Sullivan,Founder & CEO,Forge Fitness Studios,forgefitness.com,chloe.sullivan@forgefitness.com,United States,11-50,82,approved,A,,3,1,0,no,no,no,,,adding recovery and sauna amenities
-James Bennett,Founder & CEO,Gridstone Electrical,gridstone.us,james@gridstone.us,United States,11-50,82,approved,B,,3,1,0,no,no,no,,,bidding on municipal contracts
-Daniel Foster,Founder & CEO,Harborview Animal Care,harborviewvet.com,daniel@harborviewvet.com,United States,11-50,82,approved,A,,3,3,2,no,no,no,,,building a third exam suite
-Nathan Alderton,Co-Founder,Pearl & Co Dentistry,pearlandco.dental,nathan.alderton@pearlandco.dental,United States,1-10,77,approved,B,,3,3,1,no,no,no,,,pending hygiene recall backlog
-Zoe Bassett,Founder & CEO,Fairmont Tax Partners,fairmonttax.com,zoe.bassett@fairmonttax.com,United States,51-200,77,approved,A,,3,2,0,no,no,no,,,nearing tax season capacity
-James Bennett,Co-Founder,Foundry Growth Partners,foundrygrowth.com,james@foundrygrowth.com,United States,51-200,77,approved,B,,3,3,1,no,no,no,,,client roster at 14 and growing
-Hannah Nakamura,Founder & CEO,Netcrag Managed IT,netcrag.com,hannah.nakamura@netcrag.com,United States,51-200,77,approved,,booked,1,0,0,yes,yes,yes,2026-11-18,negotiating,won a 200-seat managed contract
-James Morgan,Founder & CEO,Freightline Logistics,freightline.io,james.morgan@freightline.io,United States,201-500,77,approved,,booked,1,1,0,yes,yes,yes,2026-11-19,negotiating,opening a new warehouse
-Julia Okafor,Founder & CEO,Ironvale Fabrication,ironvale.com,julia@ironvale.com,United States,201-500,77,approved,A,,3,1,0,no,no,no,,,reshoring production lines
-Sarah Delgado,Founder & CEO,Camber Tooling,cambertooling.com,sarah@cambertooling.com,United States,51-200,77,approved,B,,3,2,1,no,no,no,,,tooling capacity nearly maxed
-Julia Carter,Founder & CEO,Meridian Realty Group,meridianrealty.com,julia@meridianrealty.com,United States,51-200,77,approved,A,,3,2,2,no,no,no,,,market share up in the metro area
-Victor Iverson,Founder & CEO,Willow Creek Vet Hospitals,willowcreekvet.com,victor.iverson@willowcreekvet.com,United States,51-200,77,approved,,booked,1,1,0,yes,yes,yes,2026-11-18,negotiating,after-hours demand unmet
-Anna Bennett,Founder & CEO,SmileLab Clinics,smilelab.no,anna@smilelab.no,Norway,11-50,76,approved,,closed,1,1,1,yes,no,no,,not_interested,running Google Ads with no follow-up system
-Maya Keller,Co-Founder,SmileLab Clinics,smilelab.no,maya@smilelab.no,Norway,11-50,76,approved,,booked,1,1,1,yes,yes,yes,2026-11-18,negotiating,running Google Ads with no follow-up system
-Julia Okafor,Co-Founder,Blakely & Sons Accounting,blakelysons.co.uk,julia.okafor@blakelysons.co.uk,United Kingdom,11-50,76,approved,B,,3,2,1,no,no,no,,,losing staff to Big Four
-Alex Okafor,Founder & CEO,Inkwell Docs,inkwelldocs.com,alex@inkwelldocs.com,Germany,11-50,76,approved,A,,3,1,0,no,no,no,,,just closed a seed round
-Max Marsh,Founder & CEO,Petit Maison Home,petitmaison.fr,max@petitmaison.fr,France,11-50,76,approved,B,,3,2,2,no,no,no,,,launching on Amazon EU
-David Okafor,Co-Founder,Gearhound,gearhound.co,david@gearhound.co,United Kingdom,11-50,76,approved,,booked,1,0,0,yes,yes,yes,2026-11-20,negotiating,scaling paid social spend 2x
-Julia Okafor,Co-Founder,Basalt Performance,basaltperformance.de,julia@basaltperformance.de,Germany,11-50,76,approved,A,,3,1,0,no,no,no,,,client roster at 14 and growing
-Chris Grant,Founder & CEO,Basalt Performance,basaltperformance.de,chris.grant@basaltperformance.de,Germany,11-50,76,approved,,closed,1,1,0,yes,no,no,,not_interested,narrowing to a performance niche
-Laura Nakamura,Founder & CEO,Stonebridge Estates,stonebridgeestates.co.uk,laura.nakamura@stonebridgeestates.co.uk,United Kingdom,11-50,76,approved,B,,3,0,0,no,no,no,,,launching a property management arm
-Sam Sullivan,Co-Founder,Kinetic Club,kineticclub.sg,sam@kineticclub.sg,Singapore,11-50,76,approved,A,,3,2,38,no,no,no,,,adding recovery and sauna amenities
-Priya Moreau,Co-Founder,Lumen Aesthetics,lumenaesthetics.com,priya.moreau@lumenaesthetics.com,United States,11-50,88,suppressed,,unsubscribed,1,1,1,yes,no,no,,unsubscribe,adding a third treatment room
-Max Ferreira,Founder & CEO,Aurum Medspa,aurummedspa.com,max.ferreira@aurummedspa.com,United States,51-200,83,suppressed,A,,3,3,2,no,no,no,,,adding a third treatment room
-Anna Alderton,Co-Founder,Brightline Dental Group,brightlinedental.com,anna.alderton@brightlinedental.com,United States,11-50,82,suppressed,,booked,1,1,0,yes,yes,yes,2026-11-20,negotiating,pending hygiene recall backlog
-Kate Ellis,Founder & CEO,Copperfield Goods,copperfieldgoods.com,kate@copperfieldgoods.com,United States,11-50,82,suppressed,,unsubscribed,1,0,0,yes,no,no,,unsubscribe,launching on Amazon EU
-Zoe Ferreira,Co-Founder,Forge Fitness Studios,forgefitness.com,zoe.ferreira@forgefitness.com,United States,11-50,82,suppressed,,unsubscribed,2,1,1,yes,no,no,,unsubscribe,corporate wellness contracts in pipeline
-Maya Bennett,Founder & CEO,Harbor & Crate,harborcrate.com,maya@harborcrate.com,United States,51-200,77,suppressed,,unsubscribed,1,1,0,yes,no,no,,unsubscribe,fleet expansion planned for Q3
-QA Bounce,Tester,Round5 QA,round5-qa.example.com,bounce@round5-qa.example.com,United States,11-50,50,suppressed,,,0,0,0,no,no,no,,,
+Lead,Title,Company,Company domain,Email,Country,Company size,Score,Status,Variant,Conversation,Touches,Opens,Clicks,Replied,Hot,Booked,Meeting at,Sentiment,Hook,Verification,Source,Campaign spend USD,Cost per warm lead USD
+Sophie Novak,Co-Founder,Cala Derma Institute,caladerma.ae,sophie.novak@caladerma.ae,UAE,11-50,82,approved,B,,3,1,0,no,no,no,,,booked out 6 weeks for injectables,unknown,explorer,0.00,0.00
+Zoe Sullivan,Co-Founder,Ledgerline Advisory,ledgerline.cpa,zoe@ledgerline.cpa,United States,11-50,82,approved,A,,3,2,1,no,no,no,,,nearing tax season capacity,unknown,explorer,0.00,0.00
+Grace Foster,Co-Founder,Tidal & Co Media,tidalandco.com,grace@tidalandco.com,United States,11-50,82,approved,,closed,1,0,0,yes,no,no,,not_interested,client roster at 14 and growing,unknown,explorer,0.00,0.00
+Sarah Harlow,Founder & CEO,Shieldwall IT,shieldwallit.com,sarah@shieldwallit.com,United States,11-50,82,approved,B,,3,2,1,no,no,no,,,security practice growing fast,unknown,explorer,0.00,0.00
+Chloe Sullivan,Founder & CEO,Forge Fitness Studios,forgefitness.com,chloe.sullivan@forgefitness.com,United States,11-50,82,approved,A,,3,1,0,no,no,no,,,adding recovery and sauna amenities,unknown,explorer,0.00,0.00
+James Bennett,Founder & CEO,Gridstone Electrical,gridstone.us,james@gridstone.us,United States,11-50,82,approved,B,,3,1,0,no,no,no,,,bidding on municipal contracts,unknown,explorer,0.00,0.00
+Daniel Foster,Founder & CEO,Harborview Animal Care,harborviewvet.com,daniel@harborviewvet.com,United States,11-50,82,approved,A,,3,3,2,no,no,no,,,building a third exam suite,unknown,explorer,0.00,0.00
+Nathan Alderton,Co-Founder,Pearl & Co Dentistry,pearlandco.dental,nathan.alderton@pearlandco.dental,United States,1-10,77,approved,B,,3,3,1,no,no,no,,,pending hygiene recall backlog,unknown,explorer,0.00,0.00
+Zoe Bassett,Founder & CEO,Fairmont Tax Partners,fairmonttax.com,zoe.bassett@fairmonttax.com,United States,51-200,77,approved,A,,3,2,0,no,no,no,,,nearing tax season capacity,unknown,explorer,0.00,0.00
+James Bennett,Co-Founder,Foundry Growth Partners,foundrygrowth.com,james@foundrygrowth.com,United States,51-200,77,approved,B,,3,3,1,no,no,no,,,client roster at 14 and growing,unknown,explorer,0.00,0.00
+Hannah Nakamura,Founder & CEO,Netcrag Managed IT,netcrag.com,hannah.nakamura@netcrag.com,United States,51-200,77,approved,,booked,1,0,0,yes,yes,yes,2026-11-18,negotiating,won a 200-seat managed contract,unknown,explorer,0.00,0.00
+James Morgan,Founder & CEO,Freightline Logistics,freightline.io,james.morgan@freightline.io,United States,201-500,77,approved,,booked,1,1,0,yes,yes,yes,2026-11-19,negotiating,opening a new warehouse,unknown,explorer,0.00,0.00
+Julia Okafor,Founder & CEO,Ironvale Fabrication,ironvale.com,julia@ironvale.com,United States,201-500,77,approved,A,,3,1,0,no,no,no,,,reshoring production lines,unknown,explorer,0.00,0.00
+Sarah Delgado,Founder & CEO,Camber Tooling,cambertooling.com,sarah@cambertooling.com,United States,51-200,77,approved,B,,3,2,1,no,no,no,,,tooling capacity nearly maxed,unknown,explorer,0.00,0.00
+Julia Carter,Founder & CEO,Meridian Realty Group,meridianrealty.com,julia@meridianrealty.com,United States,51-200,77,approved,A,,3,2,2,no,no,no,,,market share up in the metro area,unknown,explorer,0.00,0.00
+Victor Iverson,Founder & CEO,Willow Creek Vet Hospitals,willowcreekvet.com,victor.iverson@willowcreekvet.com,United States,51-200,77,approved,,booked,1,1,0,yes,yes,yes,2026-11-18,negotiating,after-hours demand unmet,unknown,explorer,0.00,0.00
+Anna Bennett,Founder & CEO,SmileLab Clinics,smilelab.no,anna@smilelab.no,Norway,11-50,76,approved,,closed,1,1,1,yes,no,no,,not_interested,running Google Ads with no follow-up system,unknown,explorer,0.00,0.00
+Maya Keller,Co-Founder,SmileLab Clinics,smilelab.no,maya@smilelab.no,Norway,11-50,76,approved,,booked,1,1,1,yes,yes,yes,2026-11-18,negotiating,running Google Ads with no follow-up system,unknown,explorer,0.00,0.00
+Julia Okafor,Co-Founder,Blakely & Sons Accounting,blakelysons.co.uk,julia.okafor@blakelysons.co.uk,United Kingdom,11-50,76,approved,B,,3,2,1,no,no,no,,,losing staff to Big Four,unknown,explorer,0.00,0.00
+Alex Okafor,Founder & CEO,Inkwell Docs,inkwelldocs.com,alex@inkwelldocs.com,Germany,11-50,76,approved,A,,3,1,0,no,no,no,,,just closed a seed round,unknown,explorer,0.00,0.00
+Max Marsh,Founder & CEO,Petit Maison Home,petitmaison.fr,max@petitmaison.fr,France,11-50,76,approved,B,,3,2,2,no,no,no,,,launching on Amazon EU,unknown,explorer,0.00,0.00
+David Okafor,Co-Founder,Gearhound,gearhound.co,david@gearhound.co,United Kingdom,11-50,76,approved,,booked,1,0,0,yes,yes,yes,2026-11-20,negotiating,scaling paid social spend 2x,unknown,explorer,0.00,0.00
+Julia Okafor,Co-Founder,Basalt Performance,basaltperformance.de,julia@basaltperformance.de,Germany,11-50,76,approved,A,,3,1,0,no,no,no,,,client roster at 14 and growing,unknown,explorer,0.00,0.00
+Chris Grant,Founder & CEO,Basalt Performance,basaltperformance.de,chris.grant@basaltperformance.de,Germany,11-50,76,approved,,closed,1,1,0,yes,no,no,,not_interested,narrowing to a performance niche,unknown,explorer,0.00,0.00
+Laura Nakamura,Founder & CEO,Stonebridge Estates,stonebridgeestates.co.uk,laura.nakamura@stonebridgeestates.co.uk,United Kingdom,11-50,76,approved,B,,3,0,0,no,no,no,,,launching a property management arm,unknown,explorer,0.00,0.00
+Sam Sullivan,Co-Founder,Kinetic Club,kineticclub.sg,sam@kineticclub.sg,Singapore,11-50,76,approved,A,,3,2,44,no,no,no,,,adding recovery and sauna amenities,unknown,explorer,0.00,0.00
+Priya Moreau,Co-Founder,Lumen Aesthetics,lumenaesthetics.com,priya.moreau@lumenaesthetics.com,United States,11-50,88,suppressed,,unsubscribed,1,1,1,yes,no,no,,unsubscribe,adding a third treatment room,unknown,explorer,0.00,0.00
+Max Ferreira,Founder & CEO,Aurum Medspa,aurummedspa.com,max.ferreira@aurummedspa.com,United States,51-200,83,suppressed,A,,3,3,2,no,no,no,,,adding a third treatment room,unknown,explorer,0.00,0.00
+Anna Alderton,Co-Founder,Brightline Dental Group,brightlinedental.com,anna.alderton@brightlinedental.com,United States,11-50,82,suppressed,,booked,1,1,0,yes,yes,yes,2026-11-20,negotiating,pending hygiene recall backlog,unknown,explorer,0.00,0.00
+Kate Ellis,Founder & CEO,Copperfield Goods,copperfieldgoods.com,kate@copperfieldgoods.com,United States,11-50,82,suppressed,,unsubscribed,1,0,0,yes,no,no,,unsubscribe,launching on Amazon EU,unknown,explorer,0.00,0.00
+Zoe Ferreira,Co-Founder,Forge Fitness Studios,forgefitness.com,zoe.ferreira@forgefitness.com,United States,11-50,82,suppressed,,unsubscribed,2,1,1,yes,no,no,,unsubscribe,corporate wellness contracts in pipeline,unknown,explorer,0.00,0.00
+Maya Bennett,Founder & CEO,Harbor & Crate,harborcrate.com,maya@harborcrate.com,United States,51-200,77,suppressed,,unsubscribed,1,1,0,yes,no,no,,unsubscribe,fleet expansion planned for Q3,unknown,explorer,0.00,0.00
+QA Bounce,Tester,Round5 QA,round5-qa.example.com,bounce@round5-qa.example.com,United States,11-50,50,suppressed,,,0,0,0,no,no,no,,,,unknown,explorer,0.00,0.00

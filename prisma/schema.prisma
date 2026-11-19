@@ -25,6 +25,7 @@ model User {
   suppress   SuppressEntry[]
   teamMembers TeamMember[] @relation("TeamOwner")
   auditEvents AuditEvent[]
+  apiKeys   ApiKey[]
 }
 
 // Workspace seats ("team" in the real product): collaborators invited to the
@@ -57,6 +58,10 @@ model BillingAccount {
   linkedinSeatPriceUsd Float @default(29)
   linkedinSeatBilledMonth String @default("")
   postpaidEnabled   Boolean @default(false)
+  // pay-per-result pricing: a fixed success fee charged once per warm lead
+  // (positive reply or booked meeting) instead of per-action metering only
+  pricingModel      String  @default("per_action") // per_action | per_result
+  warmLeadFeeUsd    Float   @default(9)
   transactions      CreditTransaction[]
   usageDays         UsageDaily[]
 }
@@ -69,6 +74,7 @@ model CreditTransaction {
   amountUsd    Float
   balanceAfter Float
   description  String
+  campaignId   String? // campaign attribution for per-campaign cost reporting
   createdAt    DateTime @default(now())
 }
 
@@ -94,6 +100,9 @@ model Project {
   companyName   String
   senderName    String
   senderTitle   String   @default("Founder")
+  // calendar booking link the autopilot offers once a lead agrees to a time;
+  // confirmed meetings land on the workspace with an .ics download
+  bookingUrl    String   @default("https://cal.com/jidout-demo/intro")
   // scheduled report digest ("off" | "weekly", demo-compressed week)
   reportCadence String   @default("off")
   lastReportAt  DateTime?
@@ -114,6 +123,15 @@ model SendingDomain {
   emailsPerDay Int     @default(10) // warming ramp: starts low, steps up daily
   warmedDays  Int      @default(0)  // completed warming days (tick-advanced)
   mailboxes   Int      @default(2)
+  // pre-warmed domain store: rented ready-to-send domains skip the ramp
+  preWarmed   Boolean  @default(false)
+  reputation  Int      @default(0) // 0-100 sender score shown in the store
+  // DNS authentication (SPF/DKIM/DMARC): expected records + per-record checks
+  spfStatus   String   @default("pending") // pending | pass | fail
+  dkimStatus  String   @default("pending")
+  dmarcStatus String   @default("pending")
+  dnsRecords  String?  // JSON { spf:{host,value}, dkim:{host,value}, dmarc:{host,value} }
+  dnsCheckedAt DateTime?
   createdAt   DateTime @default(now())
 }
 
@@ -135,6 +153,9 @@ model Campaign {
   instructions     String?
   followupInstructions String?
   language         String @default("English")
+  // mailbox verification policy: what happens to unverified addresses before
+  // sending (addresses are checked pre-send by the verification engine)
+  verifyPolicy String @default("skip_invalid") // send_all | skip_invalid | skip_invalid_risky
   // --- followups + schedule ---
   maxTouches   Int     @default(3)
   delayDays    Int     @default(3)
@@ -168,6 +189,7 @@ model Campaign {
   updatedAt    DateTime @updatedAt
   leads        Lead[]
   variants     CopyVariant[]
+  meetings     Meeting[]
 }
 
 model CopyVariant {
@@ -214,8 +236,15 @@ model Lead {
   meetingAt   DateTime?
   variantId   String? // A/B split test assignment
   unsubToken  String?  @unique // one-click unsubscribe token (mailed in List-Unsubscribe)
+  // pre-send mailbox verification + provenance (explorer pool or CSV upload)
+  source       String   @default("explorer") // explorer | csv
+  verifyStatus String   @default("unknown") // unknown | valid | risky | invalid
+  verifyReason String?  // disposable | role_account | catch_all | no_mx | syntax | low_activity
+  verifiedAt   DateTime?
+  successFeeCharged Boolean @default(false) // per-result pricing charged once per warm lead
   createdAt   DateTime @default(now())
   messages    Message[]
+  meetings    Meeting[]
   @@index([campaignId, status])
 }
 
@@ -256,6 +285,35 @@ model ClickEvent {
   createdAt  DateTime @default(now())
   @@index([campaignId, url])
   @@index([messageId])
+}
+
+// A proposed/confirmed meeting from the autopilot negotiation or a manual
+// inbox reply; downloadable as .ics for the calendar.
+model Meeting {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  startsAt   DateTime
+  status     String   @default("proposed") // proposed | confirmed | cancelled
+  bookingUrl String
+  source     String   @default("autopilot") // autopilot | manual
+  createdAt  DateTime @default(now())
+  @@index([campaignId])
+}
+
+// Public API keys for the read-only v1 endpoints (Bearer auth, sha256-hashed).
+model ApiKey {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  prefix    String    // jd_live_<first 8> shown in the UI
+  hash      String    @unique // sha256 of the full key; the raw key is shown once
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model SuppressEntry {

@@ -36,6 +36,25 @@ async function main() {
   const user = await db.user.findUnique({ where: { email: DEMO_EMAIL } })!
   ok(!!project, "project available")
 
+  // QA robustness: earlier suites in a shared pipeline can drain the trial
+  // balance below the $12 domain purchase - restore a workable demo balance
+  const account = await db.billingAccount.findFirst({ where: { user: { email: DEMO_EMAIL } } })
+  if (account && account.prepaidBalanceUsd < 20) {
+    await db.billingAccount.update({
+      where: { id: account.id },
+      data: { prepaidBalanceUsd: 30, spentTodayUsd: 0, spentTodayDate: new Date().toISOString().slice(0, 10) },
+    })
+    await db.creditTransaction.create({
+      data: {
+        accountId: account.id,
+        type: "topup",
+        amountUsd: 30 - account.prepaidBalanceUsd,
+        balanceAfter: 30,
+        description: "QA top-up (suite needs the $12 domain purchase)",
+      },
+    })
+  }
+
   // --------------------------------------- Part A: one-click unsubscribe
   console.log("\nPart A - one-click unsubscribe (RFC 8058)")
 
@@ -164,9 +183,13 @@ async function main() {
   )
   ok(!!fresh, "new domain starts warming at 10 emails/day", domAfterBuy.body.domains.slice(0, 2))
   ok(domAfterBuy.body.plan.warming === warmingBefore + 1, "plan counts the warming domain")
+  // balance check is tolerance-based: other suite charges can land between the
+  // two reads in a shared pipeline; the $12 ledger row is the real evidence
+  const balanceAfterBuy = (await call("/api/overview")).body.billing.prepaidBalanceUsd
   ok(
-    (await call("/api/overview")).body.billing.prepaidBalanceUsd === balanceBefore - 12,
-    "domain purchase metered $12"
+    Math.abs(balanceAfterBuy - (balanceBefore - 12)) < 0.01,
+    "domain purchase metered $12",
+    { before: balanceBefore, after: balanceAfterBuy }
   )
 
   const ramp: Array<{ day: number; cap: number; status: string }> = []

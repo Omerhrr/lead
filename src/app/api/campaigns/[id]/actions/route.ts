@@ -100,6 +100,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const count = await generateLeadPool(id)
       return Response.json({ ok: true, poolSize: count })
     }
+    case "verify_pool": {
+      const { verifyCampaignLeads } = await import("@/lib/verify-email")
+      const result = await verifyCampaignLeads(id)
+      await logAudit({
+        ownerId: user.id,
+        actorEmail: user.email,
+        actorName: user.name ?? "",
+        action: "campaign.verified",
+        target: campaign.name,
+        detail: `${result.checked} checked · ${result.valid} valid · ${result.risky} risky · ${result.invalid} invalid`,
+      })
+      return Response.json({ ok: true, ...result })
+    }
     case "promote_variant": {
       const variantId = String(body?.variantId ?? "")
       const variant = await db.copyVariant.findFirst({ where: { id: variantId, campaignId: id } })

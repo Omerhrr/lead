@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
 import { EMAIL_PRICE_USD, MEDIAN_CPL_USD } from "@/lib/constants"
+import { campaignSpendUsd } from "@/lib/billing-ops"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,33 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   })
   const campaignIds = campaigns.map((c) => c.id)
+
+  // per-campaign cost stats for the overview list
+  const campaignsWithCost = await Promise.all(
+    campaigns.map(async (c) => ({
+      ...c,
+      spendUsd: await campaignSpendUsd(c.id),
+    }))
+  )
+  const warmCounts = await db.lead.groupBy({
+    by: ["campaignId"],
+    where: { campaignId: { in: campaignIds }, OR: [{ isHot: true }, { convStatus: "booked" }] },
+    _count: { _all: true },
+  })
+  const warmByCampaign = new Map(warmCounts.map((w) => [w.campaignId, w._count._all]))
+  const campaignsOut = campaignsWithCost.map((c) => {
+    const warm = warmByCampaign.get(c.id) ?? 0
+    return {
+      id: c.id,
+      name: c.name,
+      state: c.state,
+      sendingNow: c.sendingNow,
+      nextAction: c.nextAction,
+      createdAt: c.createdAt,
+      spendUsd: c.spendUsd,
+      cplUsd: warm > 0 ? Math.round((c.spendUsd / warm) * 100) / 100 : null,
+    }
+  })
 
   const leads = await db.lead.findMany({
     where: { campaignId: { in: campaignIds } },
@@ -59,6 +87,17 @@ export async function GET() {
     },
   })
 
+  // upcoming meetings for the overview card
+  const meetings = await db.meeting.findMany({
+    where: { campaignId: { in: campaignIds }, status: { in: ["proposed", "confirmed"] } },
+    orderBy: { startsAt: "asc" },
+    take: 5,
+    include: {
+      lead: { select: { name: true, company: true } },
+      campaign: { select: { name: true } },
+    },
+  })
+
   const cpl = hotLeads.length > 0 ? usageTotals.spend / hotLeads.length : MEDIAN_CPL_USD
 
   // scheduled weekly digest state (demo-compressed cadence)
@@ -72,7 +111,15 @@ export async function GET() {
       : null
 
   return Response.json({
-    campaigns,
+    campaigns: campaignsOut,
+    meetings: meetings.map((m) => ({
+      id: m.id,
+      startsAt: m.startsAt.toISOString(),
+      status: m.status,
+      leadName: m.lead.name,
+      leadCompany: m.lead.company,
+      campaignName: m.campaign.name,
+    })),
     stats: {
       emailsSent: usageTotals.emails,
       linkedinTouches: usageTotals.linkedin,

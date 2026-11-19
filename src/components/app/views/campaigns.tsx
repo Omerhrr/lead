@@ -11,14 +11,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, Play, Square, Pause, Archive, RotateCcw, Sparkles, CheckCheck,
   Flame, Mail, Linkedin, XCircle, CalendarCheck, ThumbsUp, ThumbsDown,
   FlaskConical, Trophy, Eye, Plus, Trash2, MousePointerClick, Download, Link2, FileText,
+  ShieldCheck, Languages, Upload, Wallet, CheckCircle2, CircleDashed,
 } from "lucide-react"
-import { api, patch, post, type CampaignDetail, type CampaignListItem, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
-import { STATE_LABELS, stateBadgeClass, money } from "@/lib/constants"
+import { api, patch, post, type CampaignDetail, type CampaignListItem, type CsvImportPreview, type DeliveryStatus, type Lead, type MessageRow } from "../api-client"
+import { STATE_LABELS, stateBadgeClass, money, LANGUAGES } from "@/lib/constants"
 
 export function CampaignsView({ onChanged }: { onChanged: () => Promise<void> | void }) {
   const [campaigns, setCampaigns] = useState<CampaignListItem[]>([])
@@ -98,10 +101,14 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
   const [testTo, setTestTo] = useState("")
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importCsv, setImportCsv] = useState("")
+  const [importPreview, setImportPreview] = useState<CsvImportPreview | null>(null)
+  const [importFileName, setImportFileName] = useState("")
   const [settings, setSettings] = useState({
     maxTouches: 3, delayDays: 3, dailyBudgetUsd: 30,
     autopilotEnabled: true, autoReplyEnabled: true, autoReplyDelayMinutes: 10,
-    linkedinEnabled: true,
+    linkedinEnabled: true, language: "English", verifyPolicy: "skip_invalid",
   })
   const { toast } = useToast()
 
@@ -122,6 +129,8 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
       autoReplyEnabled: data.campaign.autoReplyEnabled,
       autoReplyDelayMinutes: data.campaign.autoReplyDelayMinutes,
       linkedinEnabled: data.campaign.linkedinEnabled,
+      language: data.campaign.language || "English",
+      verifyPolicy: data.campaign.verifyPolicy || "skip_invalid",
     })
   }, [id])
 
@@ -162,6 +171,43 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
     try {
       await patch(`/api/campaigns/${id}`, settings)
       toast({ title: "Settings saved" })
+      await load()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function previewImport() {
+    setBusy("import-preview")
+    try {
+      const r = await post<{ preview: CsvImportPreview }>(`/api/campaigns/${id}/import-csv`, { csv: importCsv })
+      setImportPreview(r.preview)
+    } catch (e) {
+      toast({ title: "Could not parse the CSV", description: e instanceof Error ? e.message : "", variant: "destructive" })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function commitImport() {
+    setBusy("import-commit")
+    try {
+      const r = await post<{ imported: number; verification: { valid: number; risky: number; invalid: number } }>(
+        `/api/campaigns/${id}/import-csv`,
+        { csv: importCsv, commit: true }
+      )
+      toast({
+        title: `Imported ${r.imported} lead${r.imported === 1 ? "" : "s"}`,
+        description: `Verified: ${r.verification.valid} valid, ${r.verification.risky} risky, ${r.verification.invalid} invalid`,
+      })
+      setImportOpen(false)
+      setImportCsv("")
+      setImportPreview(null)
+      setImportFileName("")
+      await load()
+      await onChanged()
+    } catch (e) {
+      toast({ title: "Import failed", description: e instanceof Error ? e.message : "", variant: "destructive" })
     } finally {
       setBusy(null)
     }
@@ -225,6 +271,14 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
             <Linkedin className="mr-1 h-3 w-3" />
             {campaign.linkedinTouches} LinkedIn
           </Badge>
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+            <Languages className="mr-1 h-3 w-3" /> {campaign.language}
+          </Badge>
+          {campaign.stats.warm > 0 && (
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+              <Wallet className="mr-1 h-3 w-3" /> {money(campaign.stats.spendUsd)} · {campaign.stats.cplUsd === null ? "-" : `${money(campaign.stats.cplUsd)}/warm lead`}
+            </Badge>
+          )}
           <div className="min-w-0 flex-1 text-sm text-muted-foreground">{campaign.nextAction}</div>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -350,11 +404,44 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
               onClick={() => act("approve_leads", { all: true })}>
               Approve all ({pool.length})
             </Button>
+            <Button size="sm" variant="outline" className="rounded-full"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("verify_pool")
+                try {
+                  const r = await post<{ checked: number; valid: number; risky: number; invalid: number; chargedUsd: number }>(
+                    `/api/campaigns/${id}/actions`,
+                    { action: "verify_pool" }
+                  )
+                  toast({ title: `Verified ${r.checked} mailboxes`, description: `${r.valid} valid · ${r.risky} risky · ${r.invalid} invalid (${money(r.chargedUsd)})` })
+                  await load()
+                } catch (e) {
+                  toast({ title: "Verification failed", description: e instanceof Error ? e.message : "", variant: "destructive" })
+                } finally {
+                  setBusy(null)
+                }
+              }}>
+              {busy === "verify_pool" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <ShieldCheck className="mr-2 h-3 w-3" />}
+              Verify pool
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-full"
+              disabled={busy !== null}
+              onClick={() => {
+                setImportPreview(null)
+                setImportOpen(true)
+              }}>
+              <Upload className="mr-2 h-3 w-3" /> Import CSV
+            </Button>
             <Button size="sm" variant="ghost" className="rounded-full text-muted-foreground"
               disabled={busy !== null}
               onClick={() => act("regenerate_pool")}>
               <RotateCcw className="mr-2 h-3 w-3" /> Regenerate pool
             </Button>
+            {campaign.stats.verifyUnknown === 0 && (
+              <span className="text-xs text-muted-foreground">
+                {campaign.stats.verifyValid} valid · {campaign.stats.verifyRisky} risky · {campaign.stats.verifyInvalid} invalid
+              </span>
+            )}
           </div>
           <LeadTable
             leads={pool}
@@ -744,6 +831,46 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   />
                 </div>
               </div>
+              <div className="space-y-4 rounded-xl border border-border p-4 sm:col-span-2">
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-sm">
+                    <Languages className="h-3.5 w-3.5 text-emerald-600" /> Campaign language ({LANGUAGES.length} available)
+                  </Label>
+                  <Select
+                    value={settings.language}
+                    onValueChange={(v) => setSettings({ ...settings, language: v })}
+                  >
+                    <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {LANGUAGES.map((lang) => (
+                        <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    AI copy and follow-ups are written in this language.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-sm">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Mailbox verification policy
+                  </Label>
+                  <Select
+                    value={settings.verifyPolicy}
+                    onValueChange={(v) => setSettings({ ...settings, verifyPolicy: v })}
+                  >
+                    <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="send_all">Send to everyone</SelectItem>
+                      <SelectItem value="skip_invalid">Skip invalid mailboxes</SelectItem>
+                      <SelectItem value="skip_invalid_risky">Skip invalid + risky</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Unverified addresses are checked pre-send ({money(0.005)}/check); skipped leads never spend a send.
+                  </p>
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3 sm:col-span-3">
                 {delivery && (
                   <>
@@ -884,6 +1011,107 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
           {done.filter((l) => l.status === "rejected").length} rejected · {done.filter((l) => l.status === "suppressed").length} suppressed
         </p>
       )}
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-4 w-4 text-emerald-600" /> Import leads from CSV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Upload a list (email required; name, title, company, country, linkedin_url recognized).
+              Duplicates and suppressed addresses are skipped, and every imported mailbox is verified.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="file"
+                accept=".csv,text/csv"
+                className="w-64"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setImportFileName(file.name)
+                  setImportCsv(await file.text())
+                  setImportPreview(null)
+                }}
+              />
+              {importFileName && <span className="text-xs text-muted-foreground">{importFileName}</span>}
+              <Button size="sm" variant="outline" className="rounded-full" disabled={!importCsv.trim() || busy !== null}
+                onClick={previewImport}>
+                {busy === "import-preview" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <ShieldCheck className="mr-2 h-3 w-3" />}
+                Preview
+              </Button>
+            </div>
+            <Textarea
+              rows={4}
+              placeholder="email,name,title,company\njane@acme.com,Jane Doe,VP Ops,Acme Inc"
+              value={importCsv}
+              onChange={(e) => {
+                setImportCsv(e.target.value)
+                setImportPreview(null)
+              }}
+            />
+            {importPreview && (
+              <div className="space-y-2 rounded-xl border border-border p-3">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+                    {importPreview.importable} importable
+                  </Badge>
+                  <Badge variant="outline" className="border-stone-200 bg-stone-50 text-stone-600">
+                    {importPreview.duplicateInFile} duplicate in file
+                  </Badge>
+                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-800">
+                    {importPreview.malformed.length} malformed
+                  </Badge>
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                    {importPreview.skipped.length} skipped
+                  </Badge>
+                </div>
+                {importPreview.sample.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-secondary/80">
+                        <tr className="text-left text-muted-foreground">
+                          <th className="p-2 font-medium">Email</th>
+                          <th className="p-2 font-medium">Name</th>
+                          <th className="p-2 font-medium">Company</th>
+                          <th className="p-2 font-medium">Title</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreview.sample.map((r) => (
+                          <tr key={r.email} className="border-t border-border/60">
+                            <td className="p-2">{r.email}</td>
+                            <td className="p-2">{r.name}</td>
+                            <td className="p-2">{r.company}</td>
+                            <td className="p-2">{r.title}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {importPreview.malformed.slice(0, 5).map((m) => (
+                  <p key={m.row} className="text-[11px] text-red-700">Row {m.row}: {m.reason}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setImportOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="rounded-full bg-emerald-600 hover:bg-emerald-700"
+                disabled={!importPreview || importPreview.importable === 0 || busy !== null}
+                onClick={commitImport}>
+                {busy === "import-commit" ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-2 h-3 w-3" />}
+                Import {importPreview?.importable ?? 0} lead{importPreview?.importable === 1 ? "" : "s"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -913,6 +1141,7 @@ function LeadTable({
             <th className="hidden p-3 font-medium lg:table-cell">Size / Country</th>
             <th className="hidden max-w-52 truncate p-3 font-medium xl:table-cell">Hook</th>
             <th className="p-3 font-medium">Score</th>
+            <th className="p-3 font-medium">Verified</th>
             <th className="p-3 font-medium">Status</th>
           </tr>
         </thead>
@@ -929,7 +1158,12 @@ function LeadTable({
                 </td>
               )}
               <td className="p-3">
-                <div className="font-medium">{l.name}</div>
+                <div className="flex items-center gap-1.5 font-medium">
+                  {l.name}
+                  {l.source === "csv" && (
+                    <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">CSV</span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{l.title}</div>
               </td>
               <td className="hidden p-3 md:table-cell">
@@ -946,6 +1180,23 @@ function LeadTable({
                 <span className={`font-semibold ${l.score >= 80 ? "text-emerald-700" : l.score >= 65 ? "text-amber-600" : "text-muted-foreground"}`}>
                   {l.score}
                 </span>
+              </td>
+              <td className="p-3">
+                {l.verifyStatus === "valid" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700" title={l.verifyReason ?? ""}>
+                    <CheckCircle2 className="h-3 w-3" /> valid
+                  </span>
+                ) : l.verifyStatus === "risky" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600" title={l.verifyReason ?? ""}>
+                    <CircleDashed className="h-3 w-3" /> risky
+                  </span>
+                ) : l.verifyStatus === "invalid" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600" title={l.verifyReason ?? ""}>
+                    <XCircle className="h-3 w-3" /> invalid
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">unknown</span>
+                )}
               </td>
               <td className="p-3">
                 {l.isHot ? (

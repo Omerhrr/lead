@@ -5,6 +5,7 @@ import { generateVariantAlternative } from "@/lib/ai"
 import { logAudit } from "@/lib/audit"
 import { allowedActions } from "@/lib/constants"
 import { evaluateSplitTest, AB_MIN_SENDS, type SplitArm } from "@/lib/stats"
+import { campaignSpendUsd } from "@/lib/billing-ops"
 
 export const dynamic = "force-dynamic"
 
@@ -90,11 +91,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   })
   const topLinks = linkGroups.map((g) => ({ url: g.url, clicks: g._count._all }))
 
-  // channel mix - LinkedIn touches metered against the account's seats
-  const [linkedinTouches, emailTouches] = await Promise.all([
+  // channel-mix + per-campaign cost stats (spend from the attributed ledger)
+  const [linkedinTouches, emailTouches, spendUsd, warm, verified] = await Promise.all([
     db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "linkedin" } }),
     db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "email" } }),
+    campaignSpendUsd(id),
+    db.lead.count({ where: { campaignId: id, OR: [{ isHot: true }, { convStatus: "booked" }] } }),
+    db.lead.groupBy({
+      by: ["verifyStatus"],
+      where: { campaignId: id },
+      _count: { _all: true },
+    }),
   ])
+  const verifyCounts = Object.fromEntries(
+    verified.map((v) => [v.verifyStatus, v._count._all])
+  ) as Record<string, number>
 
   return Response.json({
     campaign: {
@@ -107,6 +118,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       topLinks,
       linkedinTouches,
       emailTouches,
+      stats: {
+        spendUsd,
+        warm,
+        cplUsd: warm > 0 ? Math.round((spendUsd / warm) * 100) / 100 : null,
+        verifyValid: verifyCounts.valid ?? 0,
+        verifyRisky: verifyCounts.risky ?? 0,
+        verifyInvalid: verifyCounts.invalid ?? 0,
+        verifyUnknown: verifyCounts.unknown ?? 0,
+      },
     },
     messages,
   })
@@ -143,6 +163,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.autoReplyDelayMinutes === "number") {
     updatePayload.autoReplyDelayMinutes = Math.max(1, Math.min(120, body.autoReplyDelayMinutes))
   }
+  if (
+    body?.verifyPolicy === "send_all" ||
+    body?.verifyPolicy === "skip_invalid" ||
+    body?.verifyPolicy === "skip_invalid_risky"
+  ) {
+    updatePayload.verifyPolicy = body.verifyPolicy
+  }
   if (typeof body.copySubject === "string") updatePayload.copySubject = body.copySubject
   if (typeof body.copyBody === "string") updatePayload.copyBody = body.copyBody
   if (typeof body.variantTest === "boolean") updatePayload.variantTest = body.variantTest
@@ -174,6 +201,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       action: "campaign.updated",
       target: existing.name,
       detail: `LinkedIn touches ${updatePayload.linkedinEnabled ? "enabled" : "disabled"}`,
+    })
+  }
+  if (
+    typeof updatePayload.verifyPolicy === "string" &&
+    updatePayload.verifyPolicy !== existing.verifyPolicy
+  ) {
+    await logAudit({
+      ownerId: user.id,
+      actorEmail: user.email,
+      actorName: user.name ?? "",
+      action: "campaign.updated",
+      target: existing.name,
+      detail: `verification policy ${existing.verifyPolicy} -> ${updatePayload.verifyPolicy}`,
     })
   }
 

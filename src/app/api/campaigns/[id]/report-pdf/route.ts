@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import PDFDocument from "pdfkit"
 import { db } from "@/lib/db"
 import { getSessionUser, unauthorized } from "@/lib/auth"
+import { campaignSpendUsd } from "@/lib/billing-ops"
 
 export const dynamic = "force-dynamic"
 
@@ -31,7 +32,7 @@ export async function GET(
     return Response.json({ error: "Campaign not found" }, { status: 404 })
   }
 
-  const [leads, touches, inbound, linkGroups] = await Promise.all([
+  const [leads, touches, inbound, linkGroups, spendUsd] = await Promise.all([
     db.lead.findMany({ where: { campaignId: id } }),
     db.message.findMany({
       where: { campaignId: id, direction: "out", kind: "touch", channel: "email" },
@@ -48,6 +49,7 @@ export async function GET(
       orderBy: { _count: { url: "desc" } },
       take: 6,
     }),
+    campaignSpendUsd(id),
   ])
 
   const approved = leads.filter((l) => l.status === "approved").length
@@ -58,6 +60,8 @@ export async function GET(
   const replied = leads.filter((l) => inboundLeadIds.has(l.id)).length
   const hot = leads.filter((l) => l.isHot).length
   const booked = leads.filter((l) => l.convStatus === "booked").length
+  const warm = leads.filter((l) => l.isHot || l.convStatus === "booked").length
+  const cplUsd = warm > 0 ? Math.round((spendUsd / warm) * 100) / 100 : null
   const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "-")
 
   // ------------------------------------------------------------ build PDF
@@ -83,7 +87,7 @@ export async function GET(
     )
   y = doc.y + 18
 
-  // funnel tiles - two rows of four
+  // funnel tiles - two rows of four plus a cost row
   const tiles: Array<[string, string]> = [
     ["Approved leads", String(approved)],
     ["Email touches", `${touches.length}${bounced > 0 ? ` (${bounced} bounced)` : ""}`],
@@ -93,6 +97,8 @@ export async function GET(
     ["Reply rate", pct(replied, approved || leads.length)],
     ["Hot leads", String(hot)],
     ["Booked", String(booked)],
+    ["Campaign spend", `$${spendUsd.toFixed(2)}`],
+    ["Cost per warm lead", cplUsd === null ? "-" : `$${cplUsd.toFixed(2)}`],
   ]
   const tileW = (W - 24) / 4
   const tileH = 44

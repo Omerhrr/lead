@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { UsageAreaChart } from "./usage-chart"
 import {
-  Mail, Flame, CalendarCheck, Reply, TrendingDown, Activity, ArrowRight, BarChart3,
+  Mail, Flame, CalendarCheck, Reply, TrendingDown, Activity, ArrowRight, BarChart3, Download,
 } from "lucide-react"
 
 export function Overview({
@@ -158,6 +158,14 @@ export function Overview({
                     <div className="truncate text-sm font-medium">{c.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{c.nextAction}</div>
                   </div>
+                  {c.cplUsd !== null ? (
+                    <div className="text-right text-xs">
+                      <div className="font-medium text-emerald-700">{money(c.cplUsd)} per warm lead</div>
+                      <div className="text-muted-foreground">{money(c.spendUsd)} spent</div>
+                    </div>
+                  ) : (
+                    <div className="text-right text-xs text-muted-foreground">{money(c.spendUsd)} spent</div>
+                  )}
                 </div>
               ))
             )}
@@ -198,6 +206,36 @@ export function Overview({
           </CardContent>
         </Card>
       </div>
+
+      {/* upcoming meetings */}
+      {data.meetings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarCheck className="h-4 w-4 text-emerald-600" /> Upcoming meetings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {data.meetings.map((m) => (
+              <a
+                key={m.id}
+                href={`/api/meetings/${m.id}/ics`}
+                className="flex items-center gap-3 rounded-xl border border-border p-3 transition hover:border-emerald-300 hover:bg-emerald-50/40"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{m.leadName} · {m.leadCompany}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {new Date(m.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {" " }· {m.campaignName}
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">{m.status}</Badge>
+                <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </a>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* scheduled digest */}
       <Card>

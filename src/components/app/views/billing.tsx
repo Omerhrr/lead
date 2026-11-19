@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Wallet, CreditCard, Mail, Linkedin, Gauge } from "lucide-react"
+import { Wallet, CreditCard, Mail, Linkedin, Gauge, Target } from "lucide-react"
 import { api, patch, post, type BillingResponse } from "../api-client"
-import { money, TOPUP_PRESETS } from "@/lib/constants"
+import { money, TOPUP_PRESETS, WARM_LEAD_FEE_MIN_USD, WARM_LEAD_FEE_MAX_USD } from "@/lib/constants"
 import { UsageAreaChart } from "./usage-chart"
 
 export function BillingView({ onChanged }: { onChanged: () => Promise<void> | void }) {
@@ -18,6 +18,8 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
   const [topup, setTopup] = useState(30)
   const [monthlyCap, setMonthlyCap] = useState(500)
   const [dailyBudget, setDailyBudget] = useState(50)
+  const [pricingModel, setPricingModel] = useState("per_action")
+  const [warmLeadFee, setWarmLeadFee] = useState(9)
   const [busy, setBusy] = useState(false)
   const { toast } = useToast()
 
@@ -26,6 +28,8 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
     setData(d)
     setMonthlyCap(d.account.monthlyCapUsd)
     setDailyBudget(d.account.dailyBudgetUsd)
+    setPricingModel(d.account.pricingModel)
+    setWarmLeadFee(d.account.warmLeadFeeUsd)
   }, [])
 
   useEffect(() => {
@@ -54,6 +58,26 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
       await patch("/api/billing", { monthlyCapUsd: monthlyCap, dailyBudgetUsd: dailyBudget })
       await load()
       toast({ title: "Budget caps updated" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function savePricing() {
+    setBusy(true)
+    try {
+      await patch("/api/billing", { pricingModel, warmLeadFeeUsd: warmLeadFee })
+      await load()
+      await onChanged()
+      toast({
+        title: pricingModel === "per_result" ? "Per-result pricing on" : "Per-action pricing on",
+        description:
+          pricingModel === "per_result"
+            ? `Every warm lead charges ${money(warmLeadFee)} once - sends still meter at ${money(data?.account.emailPriceUsd ?? 0.04)}.`
+            : "Only actions are metered; no success fees.",
+      })
+    } catch (e) {
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : "", variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -161,6 +185,54 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
             <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
               included
             </Badge>
+          </CardContent>
+        </Card>
+
+        {/* pricing model */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 text-emerald-600" /> Pricing model
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPricingModel("per_action")}
+                className={`rounded-xl border p-3 text-left transition ${pricingModel === "per_action" ? "border-emerald-500 bg-emerald-50/60" : "border-border hover:border-emerald-300"}`}
+              >
+                <div className="text-sm font-medium">Per action</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">metered sends only</div>
+              </button>
+              <button
+                onClick={() => setPricingModel("per_result")}
+                className={`rounded-xl border p-3 text-left transition ${pricingModel === "per_result" ? "border-emerald-500 bg-emerald-50/60" : "border-border hover:border-emerald-300"}`}
+              >
+                <div className="text-sm font-medium">Per result</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">+ success fee per warm lead</div>
+              </button>
+            </div>
+            {pricingModel === "per_result" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="warm-fee">Success fee per warm lead ({money(warmLeadFee)})</Label>
+                <Input
+                  id="warm-fee"
+                  type="number"
+                  min={WARM_LEAD_FEE_MIN_USD}
+                  max={WARM_LEAD_FEE_MAX_USD}
+                  step={1}
+                  value={warmLeadFee}
+                  onChange={(e) => setWarmLeadFee(Math.max(WARM_LEAD_FEE_MIN_USD, Math.min(WARM_LEAD_FEE_MAX_USD, Number(e.target.value))))}
+                  className="w-28"
+                />
+                <p className="text-xs text-muted-foreground">
+                  A warm lead is a positive reply or a booked meeting - charged once, on the moment it turns warm ($1-20 range).
+                </p>
+              </div>
+            )}
+            <Button size="sm" variant="outline" className="rounded-full" disabled={busy} onClick={savePricing}>
+              Save pricing model
+            </Button>
           </CardContent>
         </Card>
       </div>
