@@ -35,7 +35,7 @@ export function ExplorerView() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Segments Explorer</h1>
         <p className="text-sm text-muted-foreground">
-          Type business keywords — get market clusters, neighboring niches and TAM estimates (mirrors /tools/explorer).
+          Type business keywords - get market clusters, neighboring niches and TAM estimates (mirrors /tools/explorer).
         </p>
       </div>
 
@@ -130,7 +130,7 @@ export function ExplorerView() {
               <div className="sm:col-span-2">
                 {data.database.matchedCompanies.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
-                    No local matches — the real product searches 105M+ companies. Add more industries to the seed to see them here.
+                    No local matches - the real product searches 105M+ companies. Add more industries to the seed to see them here.
                   </p>
                 ) : (
                   <div className="space-y-1.5">

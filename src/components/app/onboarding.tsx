@@ -12,8 +12,7 @@ import { Loader2, ArrowRight, ArrowLeft, Sparkles, CheckCircle2 } from "lucide-r
 import { post, type CampaignListItem } from "./api-client"
 import { Logo } from "./landing"
 
-// Onboarding = explee's funnel: paste your website -> project -> campaign brief
-// (CampaignCreate schema from their OpenAPI) -> AI lead pool.
+// Onboarding funnel: paste your website -> project -> campaign brief -> AI lead pool.
 
 interface BriefState {
   offer: string
@@ -32,7 +31,7 @@ interface BriefState {
 }
 
 const EXAMPLE: BriefState = {
-  offer: "Done-for-you Google Ads management for clinics — flat monthly fee, no long contract.",
+  offer: "Done-for-you Google Ads management for clinics - flat monthly fee, no long contract.",
   customerProblem:
     "Clinics burn money on ads but miss calls and follow-ups, so booked consultations never catch up with spend.",
   targetRole: "owner, practice manager, founder",
@@ -101,11 +100,11 @@ export function Onboarding({
       })
       setStage("AI is generating filters and writing your first-touch email...")
       const res = await post<{ poolSize: number }>("/api/campaigns", {
-        name: `${companyName || companyDomain} — outbound`,
+        name: `${companyName || companyDomain} - outbound`,
         ...brief,
         language: "English",
       })
-      setStage(`Lead pool ready — ${res.poolSize} prospects found`)
+      setStage(`Lead pool ready - ${res.poolSize} prospects found`)
       setTimeout(onDone, 900)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create campaign")
@@ -131,7 +130,7 @@ export function Onboarding({
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">Tell us about your company</h1>
               <p className="mt-2 text-muted-foreground">
-                The agent works for you — it signs as {senderName || "you"} and finds customers of {companyDomain || "your business"}.
+                The agent works for you - it signs as {senderName || "you"} and finds customers of {companyDomain || "your business"}.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -187,7 +186,7 @@ export function Onboarding({
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">Describe your ideal customers</h1>
               <p className="mt-2 text-muted-foreground">
-                Same brief fields explee&apos;s CampaignCreate schema takes — the AI turns them into filters, copy and a lead pool.
+                Paste a short brief - the AI turns it into filters, copy and a lead pool.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4">
@@ -270,7 +269,7 @@ export function Onboarding({
         {hasCampaigns && (
           <p className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            You already have campaigns — this will create an additional one.
+            You already have campaigns - this will create an additional one.
           </p>
         )}
       </main>

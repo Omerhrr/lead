@@ -59,7 +59,7 @@ sleep 2
 echo "--- snapshot of variants area ---"
 agent-browser snapshot -c 2>/dev/null | rg -A2 -i "split test|variant|promote|delivered|simulated" | head -40
 
-agent-browser screenshot /home/z/my-project/download/autogtm-ab-variants.png >/dev/null 2>&1
+agent-browser screenshot /home/z/my-project/download/jidout-ab-variants.png >/dev/null 2>&1
 echo "screenshot saved: $?"
 
 echo "--- console errors ---"

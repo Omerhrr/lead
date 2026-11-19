@@ -4,7 +4,7 @@ import { getSessionUser, unauthorized } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/audit?limit=50 — recent workspace activity, newest first.
+// GET /api/audit?limit=50 - recent workspace activity, newest first.
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()

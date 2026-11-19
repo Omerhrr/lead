@@ -1,4 +1,4 @@
-// Pluggable LinkedIn delivery hook — the channel twin of email-provider.ts.
+// Pluggable LinkedIn delivery hook - the channel twin of email-provider.ts.
 //
 // LinkedIn touches (DM-shaped follow-ups to leads with a profile URL) are
 // simulated by default, exactly like emails: the engine still meters them,
@@ -9,16 +9,16 @@
 //
 //   LINKEDIN_ACCESS_TOKEN        -> LinkedIn member/organization API token
 //   LINKEDIN_API_URL             -> optional API base override (default
-//                                   https://api.linkedin.com) — used by the
+//                                   https://api.linkedin.com) - used by the
 //                                   E2E suite to point at a local mock
 //
 // Nothing else in the engine changes: the channel mix, seat assignment and
 // billing keep running the same way, so enabling the adapter is zero-risk.
 
 export interface SendLinkedInInput {
-  memberUrl: string // the lead's profile URL — sent as the recipient reference
+  memberUrl: string // the lead's profile URL - sent as the recipient reference
   senderName: string
-  text: string // DM body (no subject line — LinkedIn has none)
+  text: string // DM body (no subject line - LinkedIn has none)
 }
 
 export interface DeliveryResult {

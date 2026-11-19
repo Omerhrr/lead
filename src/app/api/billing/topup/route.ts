@@ -4,7 +4,7 @@ import { getSessionUser, unauthorized } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 
-// Simulated card charge — stands in for Stripe + Basis Theory tokenization.
+// Simulated card charge - stands in for Stripe + Basis Theory tokenization.
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return unauthorized()
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       type: "topup",
       amountUsd: amount,
       balanceAfter,
-      description: `Card charge •••• 4242 — prepaid credits`,
+      description: `Card charge •••• 4242 - prepaid credits`,
     },
   })
   return Response.json({ ok: true, balanceAfter })

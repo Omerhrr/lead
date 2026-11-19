@@ -63,12 +63,12 @@ function startMock() {
 
 const SKIP = (process.env.R8_SKIP ?? "").split(",").filter(Boolean) // e.g. R8_SKIP=B
 async function main() {
-  // session first — every authenticated part below depends on it
+  // session first - every authenticated part below depends on it
   const login = await post("/api/auth/login", { email: DEMO_EMAIL })
   ok(login.status === 200, "login", login.body)
 
   // --------------------------- Part A: LinkedIn API adapter (module level)
-  console.log("\nPart A — LinkedIn API adapter (module level)")
+  console.log("\nPart A - LinkedIn API adapter (module level)")
   delete process.env.LINKEDIN_ACCESS_TOKEN
   delete process.env.LINKEDIN_API_URL
 
@@ -105,7 +105,7 @@ async function main() {
   mock.stop(true)
 
   // --------------------------- Part B: engine sends LinkedIn touches for real
-  console.log("\nPart B — engine E2E: LinkedIn touches delivered through the adapter")
+  console.log("\nPart B - engine E2E: LinkedIn touches delivered through the adapter")
   if (SKIP.includes("B")) { console.log("  (skipped via R8_SKIP=B)") }
   else {
   ok(existsSync(".env"), "dev .env present (server harness sets LINKEDIN_* vars)")
@@ -182,7 +182,7 @@ async function main() {
   }
 
   // --------------------------- Part C: workspace audit trail
-  console.log("\nPart C — workspace audit trail")
+  console.log("\nPart C - workspace audit trail")
   const user = await db.user.findUnique({ where: { email: DEMO_EMAIL } })!
   await db.teamMember.deleteMany({ where: { owner: { email: DEMO_EMAIL } } })
   await db.auditEvent.deleteMany({ where: { userId: user.id } })
@@ -251,7 +251,7 @@ async function main() {
   await db.auditEvent.deleteMany({ where: { userId: user.id } })
 
   // --------------------------- Part D: CI workflow + docs
-  console.log("\nPart D — CI workflow + docs")
+  console.log("\nPart D - CI workflow + docs")
   const ci = existsSync(".github/workflows/ci.yml") ? readFileSync(".github/workflows/ci.yml", "utf8") : ""
   ok(ci.includes("on:") && ci.includes("push") && ci.includes("pull_request"), "CI triggers on push + PR")
   ok(ci.includes("oven-sh/setup-bun@v2"), "CI sets up bun")

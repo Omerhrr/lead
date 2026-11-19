@@ -51,7 +51,7 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Sending domains</h1>
         <p className="text-sm text-muted-foreground">
-          Domain rotation protects deliverability — exactly what explee&apos;s DomainPlan automates: the platform buys
+          Domain rotation protects deliverability - the platform buys
           domains + mailboxes for you (BYOD also supported).
         </p>
       </div>
@@ -131,7 +131,7 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
               <Plus className="mr-2 h-3 w-3" /> Add domain
             </Button>
             <p className="text-xs text-muted-foreground">
-              Free — you manage DNS. Verify to activate the domain for sending.
+              Free - you manage DNS. Verify to activate the domain for sending.
             </p>
           </CardContent>
         </Card>
@@ -144,7 +144,7 @@ export function DomainsView({ onChanged }: { onChanged: () => Promise<void> | vo
         <CardContent className="space-y-2">
           {domains.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              No domains yet — buy a starter pack above to unlock outreach.
+              No domains yet - buy a starter pack above to unlock outreach.
             </div>
           )}
           {domains.map((d) => (

@@ -29,7 +29,7 @@ const ACTION_LABEL: Record<string, string> = {
   "team.removed": "removed",
   "campaign.created": "created campaign",
   "campaign.updated": "updated campaign",
-  "billing.seats_changed": "billing — seats changed",
+  "billing.seats_changed": "billing - seats changed",
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -83,7 +83,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
         setRole("member")
       },
       "invite",
-      "Invite sent — they can accept from this page in the demo"
+      "Invite sent - they can accept from this page in the demo"
     )
   }
 
@@ -95,7 +95,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
         <p className="text-sm text-muted-foreground">
-          Workspace seats with roles — collaborators can run campaigns; viewers are read-only. LinkedIn seats
+          Workspace seats with roles - collaborators can run campaigns; viewers are read-only. LinkedIn seats
           from Billing can be assigned to teammates for LinkedIn touches.
         </p>
       </div>
@@ -148,7 +148,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
                     size="sm"
                     variant="outline"
                     disabled={busy !== null || seats.seatsAvailable < 1}
-                    title={seats.seatsAvailable < 1 ? "No LinkedIn seats left — add seats in Billing" : "Assign a LinkedIn seat"}
+                    title={seats.seatsAvailable < 1 ? "No LinkedIn seats left - add seats in Billing" : "Assign a LinkedIn seat"}
                     onClick={() => run(() => patch("/api/team", { id: m.id, action: "seat_on" }), m.id, "LinkedIn seat assigned")}
                   >
                     <Linkedin className="h-3.5 w-3.5" /> Seat
@@ -178,7 +178,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
 
           {members.length === 0 && (
             <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-              No teammates yet — invite your first collaborator below.
+              No teammates yet - invite your first collaborator below.
             </p>
           )}
         </CardContent>
@@ -237,7 +237,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
         <CardContent>
           {audit.length === 0 ? (
             <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-              Nothing yet — invites, role and seat changes, campaign lifecycle and billing edits land here.
+              Nothing yet - invites, role and seat changes, campaign lifecycle and billing edits land here.
             </p>
           ) : (
             <div className="space-y-2">
@@ -247,7 +247,7 @@ export function TeamView({ onChanged }: { onChanged: () => Promise<void> | void 
                     <span className="font-medium">{ev.actorName}</span>{" "}
                     <span className="text-muted-foreground">{ACTION_LABEL[ev.action] ?? ev.action}</span>{" "}
                     {ev.target && <span className="font-medium">{ev.target}</span>}
-                    {ev.detail && <span className="text-muted-foreground"> — {ev.detail}</span>}
+                    {ev.detail && <span className="text-muted-foreground"> - {ev.detail}</span>}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

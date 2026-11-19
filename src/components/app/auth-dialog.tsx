@@ -50,7 +50,7 @@ export function AuthDialog({
         <DialogHeader>
           <DialogTitle>Start with $30 in free credits</DialogTitle>
           <DialogDescription>
-            Work emails only — free providers can&apos;t register. Your credits fund the first outreach runs.
+            Work emails only - free providers can&apos;t register. Your credits fund the first outreach runs.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

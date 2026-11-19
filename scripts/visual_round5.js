@@ -21,7 +21,7 @@ async function main() {
 
   await page.getByRole("button", { name: "Campaigns", exact: true }).click()
   await page.waitForTimeout(1500)
-  await page.getByRole("button", { name: /Med spas — CTA clicks demo/ }).click()
+  await page.getByRole("button", { name: /Med spas - CTA clicks demo/ }).click()
   await page.waitForTimeout(2000)
 
   const body = await page.evaluate(() => document.body.innerText)
@@ -46,7 +46,7 @@ async function main() {
   await page.mouse.move(640, 450)
   await page.mouse.wheel(0, -5000)
   await page.waitForTimeout(400)
-  await page.screenshot({ path: `${OUT}/autogtm-round5-tracked-links-pdf.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round5-tracked-links-pdf.png`, fullPage: false })
   log("screenshot 1 saved (top view)")
 
   // scroll into the activity feed: touch rows with opened/clicked badges
@@ -55,7 +55,7 @@ async function main() {
   if (nb > 0) await badges.first().scrollIntoViewIfNeeded()
   log(`clicked badges: ${nb}, scrolled to first`)
   await page.waitForTimeout(400)
-  await page.screenshot({ path: `${OUT}/autogtm-activity-clicked-badges.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-activity-clicked-badges.png`, fullPage: false })
   log("screenshot 2 saved (activity feed)")
 
   const okAll = checks.exportPdf && checks.exportCsv && clicksLine && clickedBadges > 0

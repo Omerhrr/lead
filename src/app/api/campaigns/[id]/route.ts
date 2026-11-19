@@ -90,7 +90,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   })
   const topLinks = linkGroups.map((g) => ({ url: g.url, clicks: g._count._all }))
 
-  // channel mix — LinkedIn touches metered against the account's seats
+  // channel mix - LinkedIn touches metered against the account's seats
   const [linkedinTouches, emailTouches] = await Promise.all([
     db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "linkedin" } }),
     db.message.count({ where: { campaignId: id, direction: "out", kind: "touch", channel: "email" } }),
@@ -247,7 +247,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     if (existingVariants.length >= MAX_VARIANTS) {
       return Response.json(
-        { error: `Split tests support up to ${MAX_VARIANTS} variants (A–D)` },
+        { error: `Split tests support up to ${MAX_VARIANTS} variants (A-D)` },
         { status: 400 }
       )
     }
@@ -280,14 +280,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const siblings = await db.copyVariant.count({ where: { campaignId: id } })
     if (existing.variantTest && siblings <= 2) {
       return Response.json(
-        { error: "A live split test needs at least two arms — turn the test off first" },
+        { error: "A live split test needs at least two arms - turn the test off first" },
         { status: 400 }
       )
     }
     const assigned = await db.lead.count({ where: { variantId: vid } })
     if (assigned > 0) {
       return Response.json(
-        { error: `Variant ${variant.label} has ${assigned} assigned leads — removing it would break their stats` },
+        { error: `Variant ${variant.label} has ${assigned} assigned leads - removing it would break their stats` },
         { status: 400 }
       )
     }

@@ -1,4 +1,4 @@
-// Typed fetch client for the AutoGTM API.
+// Typed fetch client for the Jidout API.
 
 export interface BillingSummary {
   prepaidBalanceUsd: number

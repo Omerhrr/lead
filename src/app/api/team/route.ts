@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!EMAIL_RE.test(email)) return Response.json({ error: "Enter a valid email address" }, { status: 400 })
   if (!name) return Response.json({ error: "Name is required" }, { status: 400 })
   if (email === user.email.toLowerCase()) {
-    return Response.json({ error: "That's you — the account owner needs no invite" }, { status: 400 })
+    return Response.json({ error: "That's you - the account owner needs no invite" }, { status: 400 })
   }
   const dupe = await db.teamMember.findUnique({
     where: { ownerId_email: { ownerId: user.id, email } },
@@ -95,7 +95,7 @@ export async function PATCH(req: NextRequest) {
     const used = await db.teamMember.count({ where: { ownerId: user.id, linkedinSeat: true } })
     if (!account || used >= account.linkedinSeats) {
       return Response.json(
-        { error: "No LinkedIn seats left — add seats in Billing first" },
+        { error: "No LinkedIn seats left - add seats in Billing first" },
         { status: 400 }
       )
     }

@@ -25,7 +25,7 @@ curl -s -c $JAR -X POST $BASE/api/auth/login -H "Content-Type: application/json"
 
 echo "=== 2. create fresh campaign (LLM filters + copy) ==="
 curl -s -b $JAR -X POST $BASE/api/campaigns -H "Content-Type: application/json" -d '{
-  "name":"A/B/C arms v2 — clinics",
+  "name":"A/B/C arms v2 - clinics",
   "offer":"An AI receptionist that answers missed calls and books appointments automatically",
   "customerProblem":"Clinics lose 30% of new-patient calls when the front desk is busy",
   "targetRole":"founder, practice manager, owner",
@@ -102,7 +102,7 @@ let added = 0
 for (const l of bLeads) {
   const has = await db.message.count({ where: { campaignId: '$CID', leadId: l.id, direction: 'in' } })
   if (has === 0) {
-    await db.message.create({ data: { campaignId: '$CID', leadId: l.id, direction: 'in', channel: 'email', kind: 'reply', body: 'Yes — this is exactly our bottleneck. Let us talk.', status: 'sent' } })
+    await db.message.create({ data: { campaignId: '$CID', leadId: l.id, direction: 'in', channel: 'email', kind: 'reply', body: 'Yes - this is exactly our bottleneck. Let us talk.', status: 'sent' } })
     added++
   }
 }

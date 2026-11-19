@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client"
 const db = new PrismaClient()
 const BASE = "http://localhost:3000"
 const DEMO_EMAIL = "riley@brightpath.io"
-const CTA = "https://cal.com/brightpath/demo?utm=autogtm"
+const CTA = "https://cal.com/brightpath/demo?utm=jidout"
 let cookie = ""
 
 async function call(path: string, init?: RequestInit): Promise<{ status: number; body: any; res: Response }> {
@@ -39,9 +39,9 @@ async function main() {
   // The three-arm campaign has exhausted its sequence (all leads at max
   // touches), so click flow is verified on a fresh campaign whose first
   // touches carry the CTA from the start.
-  console.log("\nPart A — tracked CTA link + click stats")
+  console.log("\nPart A - tracked CTA link + click stats")
   const existingCta = await db.campaign.findFirst({
-    where: { projectId: project!.id, name: "Med spas — CTA clicks demo" },
+    where: { projectId: project!.id, name: "Med spas - CTA clicks demo" },
   })
   let created: { status: number; body: any }
   if (existingCta) {
@@ -49,7 +49,7 @@ async function main() {
     console.log("  reusing CTA demo campaign from a previous run:", existingCta.id)
   } else {
     created = await post("/api/campaigns", {
-    name: "Med spas — CTA clicks demo",
+    name: "Med spas - CTA clicks demo",
     offer: "AI receptionist that books med-spa appointments 24/7",
     customerProblem: "front desks miss after-hours calls and lose bookings",
     targetRole: "Founder, Practice Manager",
@@ -75,7 +75,7 @@ async function main() {
     const start = await post(`/api/campaigns/${id}/actions`, { action: "start" })
     ok(start.status === 200, "campaign started", start.body)
   } else {
-    console.log("  campaign already", curState, "— skipping approve/start")
+    console.log("  campaign already", curState, "- skipping approve/start")
   }
 
   process.stdout.write("  ticking: ")
@@ -113,9 +113,9 @@ async function main() {
   ok(bad2.status === 400, "unsafe click target rejected")
 
   // ---------------------------------------------------------- CSV report
-  console.log("\nPart B — CSV report export")
+  console.log("\nPart B - CSV report export")
   const threeArm = await db.campaign.findFirst({
-    where: { projectId: project!.id, name: "Med spas — three-way copy test" },
+    where: { projectId: project!.id, name: "Med spas - three-way copy test" },
   })
   ok(!!threeArm, "three-arm campaign available for variant attribution")
   const rep = await fetch(`${BASE}/api/campaigns/${threeArm!.id}/report`, { headers: { cookie } })
@@ -131,7 +131,7 @@ async function main() {
   ok(withVariant > 0, `variant attribution populated (${withVariant} rows)`)
 
   // ------------------------------------------------- Resend webhook events
-  console.log("\nPart C — Resend webhook (open + click)")
+  console.log("\nPart C - Resend webhook (open + click)")
   const fx = await db.message.create({
     data: {
       campaignId: id, leadId: (await db.lead.findFirst({ where: { campaignId: id } }))!.id,
@@ -148,7 +148,7 @@ async function main() {
   const r2 = await wh({ type: "email.clicked", data: { email_id: "re_fixture_round4", click: { link: CTA } } })
   const m2 = (await db.message.findUnique({ where: { id: fx.id } }))!
   ok(r2.status === 200 && m2.clicks === 1 && !!m2.clickedAt, "email.clicked -> clicks+1")
-  // email.bounced is handled since round 5 (suppression sync) — use an
+  // email.bounced is handled since round 5 (suppression sync) - use an
   // event type outside the handled set to assert the ignore path
   const r3 = await wh({ type: "email.delivery_delayed", data: { email_id: "re_fixture_round4" } })
   ok(r3.status === 200 && (await r3.json()).ignored === "email.delivery_delayed", "unhandled event ignored")

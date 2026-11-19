@@ -42,8 +42,8 @@ async function main() {
   const user = await db.user.findUnique({ where: { email: DEMO_EMAIL } })!
   ok(!!project, "project available")
 
-  // --------------------------- Part A: LinkedIn touches — campaign-level toggle
-  console.log("\nPart A — LinkedIn touches: campaign-level channel control")
+  // --------------------------- Part A: LinkedIn touches - campaign-level toggle
+  console.log("\nPart A - LinkedIn touches: campaign-level channel control")
   const template = await db.campaign.findFirst({ where: { projectId: project!.id } })!
   const usageBefore = await db.usageDaily.findUnique({
     where: { accountId_date: { accountId: (await db.billingAccount.findUnique({ where: { userId: user!.id } }))!.id, date: new Date().toISOString().slice(0, 10) } },
@@ -65,13 +65,13 @@ async function main() {
     },
   })
 
-  // A1: PATCH roundtrip — the toggle persists through the campaign API
+  // A1: PATCH roundtrip - the toggle persists through the campaign API
   const patchOn = await patch(`/api/campaigns/${scratch.id}`, { linkedinEnabled: true })
   ok(patchOn.status === 200 && patchOn.body.campaign.linkedinEnabled === true, "PATCH linkedinEnabled=true persists")
   const patchOff = await patch(`/api/campaigns/${scratch.id}`, { linkedinEnabled: false })
   ok(patchOff.status === 200 && patchOff.body.campaign.linkedinEnabled === false, "PATCH linkedinEnabled=false persists")
 
-  // A2: OFF gate is deterministic — first touch + forced follow-up are BOTH email
+  // A2: OFF gate is deterministic - first touch + forced follow-up are BOTH email
   const gateLead = await db.lead.create({
     data: {
       campaignId: scratch.id, name: "QA Channel", title: "Tester", company: "Round7 QA",
@@ -93,7 +93,7 @@ async function main() {
   })
   ok(!!touch2 && touch2.channel === "email", "forced follow-up is email with toggle off", touch2?.channel)
 
-  // A3: ON — batch follow-ups across 12 LinkedIn-profiled leads produce
+  // A3: ON - batch follow-ups across 12 LinkedIn-profiled leads produce
   // channel="linkedin" touches (30% per follow-up; loop makes failure ~impossible)
   const patchOn2 = await patch(`/api/campaigns/${scratch.id}`, { linkedinEnabled: true })
   ok(patchOn2.status === 200, "toggle re-enabled for the batch check")
@@ -134,7 +134,7 @@ async function main() {
   ok(detail.body.campaign.linkedinTouches === liCount && detail.body.campaign.emailTouches === emCount,
     `campaign API channel mix matches db (${emCount} email / ${liCount} LinkedIn)`)
 
-  // A5: metering — usage row grew and the ledger shows the LinkedIn touch line
+  // A5: metering - usage row grew and the ledger shows the LinkedIn touch line
   const usageAfter = await db.usageDaily.findUnique({
     where: { accountId_date: { accountId: (await db.billingAccount.findUnique({ where: { userId: user!.id } }))!.id, date: new Date().toISOString().slice(0, 10) } },
   })
@@ -149,7 +149,7 @@ async function main() {
   await db.campaign.delete({ where: { id: scratch.id } })
 
   // --------------------------- Part B: team / workspace seats
-  console.log("\nPart B — team seats (invite, accept, LinkedIn seat, owner guards)")
+  console.log("\nPart B - team seats (invite, accept, LinkedIn seat, owner guards)")
   await db.teamMember.deleteMany({ where: { owner: { email: DEMO_EMAIL } } })
   const team0 = await call("/api/team")
   ok(team0.status === 200 && team0.body.owner.email === DEMO_EMAIL, "GET /api/team returns the owner workspace")
@@ -205,7 +205,7 @@ async function main() {
   await db.teamMember.deleteMany({ where: { owner: { email: DEMO_EMAIL } } })
 
   // --------------------------- Part C: deployable-template packaging
-  console.log("\nPart C — deployable-template packaging")
+  console.log("\nPart C - deployable-template packaging")
   const envExample = existsSync(".env.example") ? readFileSync(".env.example", "utf8") : ""
   ok(envExample.includes("DATABASE_URL="), ".env.example documents DATABASE_URL")
   ok(envExample.includes("RESEND_API_KEY=") && envExample.includes("RESEND_WEBHOOK_SECRET="), ".env.example documents Resend vars")

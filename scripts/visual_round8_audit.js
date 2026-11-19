@@ -25,10 +25,10 @@ async function main() {
   await page.waitForTimeout(1500)
   const teamBody = await page.evaluate(() => document.body.innerText)
   ok(teamBody.includes("Activity log"), "Activity log card present")
-  ok(teamBody.includes("assigned a LinkedIn seat to Kate Lin"), "audit row: seat assignment")
+  ok(teamBody.includes("assigned a LinkedIn seat to kate@brightpath.io"), "audit row: seat assignment")
   ok(teamBody.includes("accepted invite"), "audit row: acceptance")
   ok((teamBody.match(/invited/g) || []).length >= 2, "audit rows: both invites recorded")
-  await page.screenshot({ path: `${OUT}/autogtm-round8-audit.png`, fullPage: true })
+  await page.screenshot({ path: `${OUT}/jidout-round8-audit.png`, fullPage: true })
   console.log("   full-page screenshot saved")
 
   await browser.close()

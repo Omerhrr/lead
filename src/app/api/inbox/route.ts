@@ -4,7 +4,7 @@ import { getSessionUser, unauthorized } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 
-// Conversations inbox — mirrors explee's autogtm inbox group
+// Conversations inbox - threaded outreach conversations per lead.
 // (conversations per lead, statuses, hot leads).
 export async function GET(req: NextRequest) {
   const user = await getSessionUser()

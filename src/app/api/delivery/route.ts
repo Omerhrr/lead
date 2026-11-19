@@ -48,24 +48,24 @@ export async function POST(req: NextRequest) {
   const st = providerStatus()
   if (!st.configured) {
     return Response.json(
-      { error: "No provider configured — set RESEND_API_KEY or SMTP_HOST and restart" },
+      { error: "No provider configured - set RESEND_API_KEY or SMTP_HOST and restart" },
       { status: 400 }
     )
   }
 
   const result = await deliverOutreach({
     to,
-    fromName: "AutoGTM",
+    fromName: "Jidout",
     fromEmail: st.fromEmail ?? to,
-    subject: "AutoGTM test email — delivery hook works",
+    subject: "Jidout test email - delivery hook works",
     text: [
       "Hi,",
       "",
-      `This is a test email from AutoGTM, delivered through the "${st.provider}" provider.`,
-      "If you received it, your outbound delivery hook is configured correctly —",
+      `This is a test email from Jidout, delivered through the "${st.provider}" provider.`,
+      "If you received it, your outbound delivery hook is configured correctly -",
       "first touches and follow-ups will go out through the same path.",
       "",
-      "— AutoGTM",
+      "- Jidout",
     ].join("\n"),
   })
 

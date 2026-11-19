@@ -76,12 +76,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (remaining === 0) {
         await db.campaign.update({
           where: { id },
-          data: { state: "approved", nextAction: "Leads approved — press Start to begin outreach" },
+          data: { state: "approved", nextAction: "Leads approved - press Start to begin outreach" },
         })
       } else {
         await db.campaign.update({
           where: { id },
-          data: { nextAction: `${remaining} leads still in the pool — approve more or proceed` },
+          data: { nextAction: `${remaining} leads still in the pool - approve more or proceed` },
         })
       }
       return Response.json({ ok: true, approved: targets.length, remaining })
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           copySubject: variant.subject,
           copyBody: variant.body,
           variantTest: false,
-          nextAction: `Variant ${variant.label} promoted — split test closed, the winner is now "My copy"`,
+          nextAction: `Variant ${variant.label} promoted - split test closed, the winner is now "My copy"`,
         },
       })
       return Response.json({ ok: true, winner: variant.label })

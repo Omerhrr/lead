@@ -70,7 +70,7 @@ async function main() {
       return
     }
   }
-  console.error("no delivered LinkedIn touch produced — check the mock + server env")
+  console.error("no delivered LinkedIn touch produced - check the mock + server env")
   process.exitCode = 1
 }
 

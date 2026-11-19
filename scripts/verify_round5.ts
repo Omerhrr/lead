@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client"
 const db = new PrismaClient()
 const BASE = "http://localhost:3000"
 const DEMO_EMAIL = "riley@brightpath.io"
-const CTA = "https://cal.com/brightpath/demo?utm=autogtm"
+const CTA = "https://cal.com/brightpath/demo?utm=jidout"
 let cookie = ""
 
 async function call(path: string, init?: RequestInit): Promise<{ status: number; body: any; res: Response }> {
@@ -36,12 +36,12 @@ async function main() {
   const user = await db.user.findUnique({ where: { email: DEMO_EMAIL } })!
 
   const campaign = await db.campaign.findFirst({
-    where: { projectId: project!.id, name: "Med spas — CTA clicks demo" },
+    where: { projectId: project!.id, name: "Med spas - CTA clicks demo" },
   })
   ok(!!campaign, "CTA demo campaign available", campaign?.name)
 
   // ---------------------------------------------- Part A: per-link clicks
-  console.log("\nPart A — per-link click breakdown")
+  console.log("\nPart A - per-link click breakdown")
   const msg = await db.message.findFirst({
     where: { campaignId: campaign!.id, direction: "out", kind: "touch", channel: "email" },
     orderBy: { createdAt: "desc" },
@@ -83,7 +83,7 @@ async function main() {
   ok(!!deepEntry && deepEntry.clicks === 1, "topLinks contains the webhook deep link (1 click)")
 
   // ---------------------------------------------- Part B: PDF report
-  console.log("\nPart B — PDF summary report")
+  console.log("\nPart B - PDF summary report")
   const pdfRes = await fetch(`${BASE}/api/campaigns/${campaign!.id}/report-pdf`, { headers: { cookie } })
   const buf = Buffer.from(await pdfRes.arrayBuffer())
   ok(pdfRes.status === 200, "report-pdf returns 200")
@@ -95,7 +95,7 @@ async function main() {
   ok(pdf3.status === 401, "report-pdf without session -> 401")
 
   // ------------------------------------- Part C: bounce/complaint suppression
-  console.log("\nPart C — bounce + complaint suppression sync")
+  console.log("\nPart C - bounce + complaint suppression sync")
   const qaDomain = "round5-qa.example.com"
   const lead = await db.lead.upsert({
     where: { id: (await db.lead.findFirst({ where: { campaignId: campaign!.id, companyDomain: qaDomain } }))?.id ?? "none" },

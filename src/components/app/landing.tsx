@@ -16,7 +16,7 @@ export function Logo({ className = "" }: { className?: string }) {
         <span className="h-[7px] w-[7px] rounded-[2px] bg-emerald-600/40" />
         <span className="h-[7px] w-[7px] rounded-[2px] bg-emerald-600" />
       </span>
-      autogtm
+      jidout
     </span>
   )
 }
@@ -165,7 +165,7 @@ export function Landing({ onStart }: { onStart: (domain?: string) => void }) {
             </button>
             <p className="mt-8 max-w-2xl text-balance text-muted-foreground">
               Our AI agents research the market, sharpen your ICP, find high-intent prospects,
-              write personalized emails, and book demos — 24/7.
+              write personalized emails, and book demos - 24/7.
             </p>
           </div>
         </section>
@@ -190,7 +190,7 @@ export function Landing({ onStart }: { onStart: (domain?: string) => void }) {
         <section id="how" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
           <h2 className="text-center text-3xl font-semibold tracking-tight">What the agent does</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            One employee of an entire outbound stack — database, deliverability, copywriting and an SDR — compressed into an autopilot.
+            One employee of an entire outbound stack - database, deliverability, copywriting and an SDR - compressed into an autopilot.
           </p>
           <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
@@ -247,7 +247,7 @@ export function Landing({ onStart }: { onStart: (domain?: string) => void }) {
                 </div>
               </div>
               <p className="mt-6 text-center text-sm text-muted-foreground">
-                {EMAILS_PER_30_USD} emails per $30 · median {MEDIAN_CPL_USD} USD per lead · $1–20 CPL range
+                {EMAILS_PER_30_USD} emails per $30 · median {MEDIAN_CPL_USD} USD per lead · $1-20 CPL range
               </p>
               <div className="mt-8 text-center">
                 <Button size="lg" className="rounded-full px-8" onClick={() => onStart()}>
@@ -262,8 +262,8 @@ export function Landing({ onStart }: { onStart: (domain?: string) => void }) {
       <footer className="border-t border-border/60">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
           <Logo />
-          <span>Reverse-engineered clone of explee.com (app-auto-gtm) — demo build</span>
-          <span>{new Date().getFullYear()} · Not affiliated with Explee</span>
+          <span>jidout - demo build</span>
+          <span>{new Date().getFullYear()} · Jidout</span>
         </div>
       </footer>
     </div>

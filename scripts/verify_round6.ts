@@ -37,9 +37,9 @@ async function main() {
   ok(!!project, "project available")
 
   // --------------------------------------- Part A: one-click unsubscribe
-  console.log("\nPart A — one-click unsubscribe (RFC 8058)")
+  console.log("\nPart A - one-click unsubscribe (RFC 8058)")
 
-  // A1: send-path wiring — throwaway campaign sends a touch with the opt-out
+  // A1: send-path wiring - throwaway campaign sends a touch with the opt-out
   // footer + per-lead token (demo mode; headers only observable with a provider)
   const template = await db.campaign.findFirst({ where: { projectId: project!.id } })!
   const scratch = await db.campaign.create({
@@ -91,7 +91,7 @@ async function main() {
   ok(supEntry?.reason === "unsubscribe", "SuppressEntry reason='unsubscribe'")
   ok(leadUnsub.status === "suppressed" && leadUnsub.convStatus === "unsubscribed", "lead suppressed + unsubscribed")
 
-  // A3: RFC 8058 one-click POST (mail clients) — same suppression, plain 200
+  // A3: RFC 8058 one-click POST (mail clients) - same suppression, plain 200
   const optout2 = await db.lead.create({
     data: {
       campaignId: scratch.id, name: "QA OneClick", title: "Tester", company: "Round6 QA",
@@ -121,7 +121,7 @@ async function main() {
   await db.campaign.delete({ where: { id: scratch.id } })
 
   // --------------------------------------- Part B: scheduled weekly digest
-  console.log("\nPart B — scheduled weekly report digest")
+  console.log("\nPart B - scheduled weekly report digest")
   const before = await call("/api/overview")
   const beforeCount = before.body.report?.reportCount ?? 0
   ok(before.body.report?.cadence === "off" || before.body.report?.cadence === "weekly", "overview exposes report settings", before.body.report)
@@ -130,7 +130,7 @@ async function main() {
   ok(enable.status === 200 && enable.body.cadence === "weekly", "enable weekly digest")
   const afterEnable = await call("/api/overview")
   ok(afterEnable.body.report.cadence === "weekly" && afterEnable.body.report.lastReportAt === null,
-    "weekly armed — first digest fires on the next tick", afterEnable.body.report)
+    "weekly armed - first digest fires on the next tick", afterEnable.body.report)
 
   await post("/api/tick", {})
   const afterTick = await call("/api/overview")
@@ -150,7 +150,7 @@ async function main() {
   ok(badCadence.status === 400, "invalid cadence rejected")
 
   // --------------------------------------- Part C: domain warming
-  console.log("\nPart C — domain-warming simulator")
+  console.log("\nPart C - domain-warming simulator")
   const domBefore = await call("/api/domains")
   const capacityBefore = domBefore.body.plan.ownedCapacity
   const warmingBefore = domBefore.body.plan.warming
@@ -194,7 +194,7 @@ async function main() {
   // cleanup: remove QA domains + refund the metered purchase
   await db.sendingDomain.deleteMany({ where: { id: { in: [fresh.id, byod.body.domain.id] } } })
   await db.creditTransaction.deleteMany({
-    where: { accountId: (await db.billingAccount.findUnique({ where: { userId: user!.id } }))!.id, description: { contains: "Domain plan — 1 sending domain" } },
+    where: { accountId: (await db.billingAccount.findUnique({ where: { userId: user!.id } }))!.id, description: { contains: "Domain plan - 1 sending domain" } },
   })
   const acct = await db.billingAccount.findUnique({ where: { userId: user!.id } })!
   await db.billingAccount.update({ where: { id: acct.id }, data: { prepaidBalanceUsd: acct.prepaidBalanceUsd + 12 } })

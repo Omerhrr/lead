@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
-// Resend webhook receiver — complements the in-house open/click pixel for
+// Resend webhook receiver - complements the in-house open/click pixel for
 // real sends. Set RESEND_WEBHOOK_SECRET (Svix "whsec_..." signing secret) in
 // production; without it the route accepts unsigned events (demo mode).
 // Handled events:

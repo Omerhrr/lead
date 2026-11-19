@@ -53,10 +53,10 @@ async function main() {
     ok(top.status === 200, "topup $20", top.body)
   }
 
-  // ============================ PART A — live 3-arm split over the engine ===
-  console.log("\nPart A — three-arm live split test")
+  // ============================ PART A - live 3-arm split over the engine ===
+  console.log("\nPart A - three-arm live split test")
   const existing = await db.campaign.findFirst({
-    where: { projectId: project!.id, name: "Med spas — three-way copy test" },
+    where: { projectId: project!.id, name: "Med spas - three-way copy test" },
   })
   let id: string
   if (existing) {
@@ -64,7 +64,7 @@ async function main() {
     console.log("  reusing campaign from a previous run:", id)
   } else {
     const created = await post("/api/campaigns", {
-    name: "Med spas — three-way copy test",
+    name: "Med spas - three-way copy test",
     offer: "AI receptionist that books med-spa appointments 24/7",
     customerProblem: "front desks miss after-hours calls and lose bookings",
     targetRole: "Founder, Practice Manager",
@@ -92,7 +92,7 @@ async function main() {
     const start = await post(`/api/campaigns/${id}/actions`, { action: "start" })
     ok(start.status === 200, "campaign started", start.body)
   } else {
-    console.log("  campaign already", curState, "— skipping approve/start")
+    console.log("  campaign already", curState, "- skipping approve/start")
   }
 
   process.stdout.write("  ticking: ")
@@ -120,7 +120,7 @@ async function main() {
   ok(stats.filter((s) => s.sent > 0).length >= 2, "at least 2 arms have sends")
   ok(stats.some((s) => s.opened > 0), "opens recorded in demo mode")
   const st2 = det.body.campaign.splitTest
-  console.log(`  splitTest: leader=${st2?.leader} p=${st2?.pValue?.toFixed(3) ?? "—"} significant=${st2?.significant}`)
+  console.log(`  splitTest: leader=${st2?.leader} p=${st2?.pValue?.toFixed(3) ?? "-"} significant=${st2?.significant}`)
   ok(!!st2, "split test evaluation present")
 
   // --------------------------------------------- pixel endpoint (real mode)
@@ -158,7 +158,7 @@ async function main() {
   // <=2 arms rule on a throwaway campaign
   const fx2 = await db.campaign.create({
     data: {
-      projectId: project!.id, name: "QA — two-arm guard", offer: "x", customerProblem: "x",
+      projectId: project!.id, name: "QA - two-arm guard", offer: "x", customerProblem: "x",
       targetRole: "x", targetGeography: "x", targetCompanySize: "11-50", variantTest: true,
       copySubject: "s", copyBody: "b",
     },
@@ -170,11 +170,11 @@ async function main() {
   await db.campaign.delete({ where: { id: fx2.id } }) // cascade cleans variants
   console.log("  QA two-arm guard campaign deleted")
 
-  // ===================== PART B — reply-rate auto-promotion (z-test) ========
-  console.log("\nPart B — auto-promotion fixture (20/20 leads, A 20% vs B 50% reply)")
+  // ===================== PART B - reply-rate auto-promotion (z-test) ========
+  console.log("\nPart B - auto-promotion fixture (20/20 leads, A 20% vs B 50% reply)")
   const fx = await db.campaign.create({
     data: {
-      projectId: project!.id, name: "QA — autopromote fixture", offer: "x", customerProblem: "x",
+      projectId: project!.id, name: "QA - autopromote fixture", offer: "x", customerProblem: "x",
       targetRole: "x", targetGeography: "x", targetCompanySize: "11-50", variantTest: true, autoPromote: true,
       copySubject: "control subject", copyBody: "control body",
     },

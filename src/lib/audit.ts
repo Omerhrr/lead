@@ -1,4 +1,4 @@
-// Workspace audit trail — every mutating action across team, campaigns and
+// Workspace audit trail - every mutating action across team, campaigns and
 // billing writes one AuditEvent row owned by the account owner. Fire-and-
 // forget: audit logging must never break the action it records.
 import { db } from "@/lib/db"

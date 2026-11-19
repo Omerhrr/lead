@@ -25,6 +25,13 @@ async function main() {
 
   // ---- Team view: seed two members (one invited, one active with LinkedIn seat)
   await page.evaluate(async () => {
+    // idempotent start: clear members left by previous runs (owner kept)
+    const d = await fetch("/api/team").then((r) => r.json())
+    for (const m of d.members.filter((x) => x.role !== "owner")) {
+      await fetch(`/api/team?id=${m.id}`, { method: "DELETE" })
+    }
+  })
+  await page.evaluate(async () => {
     const inv = async (email, name, role) =>
       fetch("/api/team", {
         method: "POST",
@@ -51,17 +58,17 @@ async function main() {
   ok(teamBody.includes("Jordan Blake") && teamBody.includes("invite pending"), "invited member row visible")
   ok(teamBody.includes("Kate Lin") && teamBody.includes("seat"), "active member with LinkedIn seat visible")
   ok(teamBody.includes("LinkedIn seats: 1/1 assigned"), "seat summary line visible")
-  await page.screenshot({ path: `${OUT}/autogtm-round7-team.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round7-team.png`, fullPage: false })
   log("screenshot 1 saved (team workspace)")
 
   // ---- Campaigns: channel-mix badge in the detail header
   await page.getByRole("button", { name: "Campaigns", exact: true }).click()
   await page.waitForTimeout(1800)
-  await page.getByText("Med spas — CTA clicks demo").first().click().catch(() => {})
+  await page.getByText("Med spas - CTA clicks demo").first().click().catch(() => {})
   await page.waitForTimeout(1500)
   const headBody = await page.evaluate(() => document.body.innerText)
   ok(/\d+ email\s*·\s*\d+ LinkedIn/.test(headBody), `channel mix badge visible: ${headBody.match(/\d+ email\s*·\s*\d+ LinkedIn/)?.[0] ?? "?"}`)
-  await page.screenshot({ path: `${OUT}/autogtm-round7-channel-mix.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round7-channel-mix.png`, fullPage: false })
   log("screenshot 2 saved (campaign header channel mix)")
 
   // ---- Settings tab: LinkedIn touches switch
@@ -76,7 +83,7 @@ async function main() {
   await page.waitForTimeout(300)
   const setBody = await page.evaluate(() => document.body.innerText)
   ok(setBody.includes("LinkedIn touches"), "LinkedIn touches switch present in settings")
-  await page.screenshot({ path: `${OUT}/autogtm-round7-linkedin-toggle.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round7-linkedin-toggle.png`, fullPage: false })
   log("screenshot 3 saved (settings toggle)")
 
   // ---- cleanup: remove visual QA team members

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Round-7 QA pipeline: start dev server (dies with this call — sandbox reaps
+# Round-7 QA pipeline: start dev server (dies with this call - sandbox reaps
 # background processes between tool calls), warm it, run all E2E suites and
 # quality gates in one shot.
 set -u

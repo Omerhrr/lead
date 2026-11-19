@@ -1,6 +1,6 @@
-// Agent engine — reconstructs explee's outreach loop from the reverse-
-// engineered API semantics: brief → lead pool → approve → state machine
-// sends → autopilot replies → booked meetings, with credit metering.
+// Agent engine - drives the outreach loop end to end: brief → lead pool →
+// approve → state machine sends → autopilot replies → booked meetings,
+// with credit metering.
 // Time is compressed: one 4s tick ~= a working chunk of a campaign day.
 
 import { randomBytes } from "crypto"
@@ -267,12 +267,12 @@ async function noteReplyEvent(accountId: string, hot: boolean) {
 
 const INBOUND_TEXT: Record<string, string[]> = {
   interested: [
-    "Hi! This is actually really timely — we've been looking at solving exactly this. Happy to hear more. What does pricing look like?",
-    "Interesting — we have this problem on our list for this quarter. Do you have 15 minutes this week?",
+    "Hi! This is actually really timely - we've been looking at solving exactly this. Happy to hear more. What does pricing look like?",
+    "Interesting - we have this problem on our list for this quarter. Do you have 15 minutes this week?",
     "I'd be up for a quick chat. Thursday or Friday afternoon works on my end.",
   ],
   question: [
-    "Thanks for reaching out. Quick question — how does this integrate with what we already run? We're on a mixed stack.",
+    "Thanks for reaching out. Quick question - how does this integrate with what we already run? We're on a mixed stack.",
     "Sounds relevant. What kind of results are your similar clients seeing, and how long does onboarding take?",
   ],
   not_interested: [
@@ -363,7 +363,7 @@ async function scheduledReportsPass(userId: string) {
   for (const project of projects) {
     if (project.lastReportAt && now - project.lastReportAt.getTime() < REPORT_INTERVAL_MS) continue
     const lines: string[] = [
-      `AutoGTM weekly digest — ${project.companyName}`,
+      `Jidout weekly digest - ${project.companyName}`,
       `Generated ${new Date().toISOString().slice(0, 10)} · demo-compressed week`,
       "",
     ]
@@ -383,7 +383,7 @@ async function scheduledReportsPass(userId: string) {
       ])
       const approved = leads.filter((l) => l.status === "approved").length
       const repliedIds = new Set(inbound.map((m) => m.leadId))
-      const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—")
+      const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "-")
       lines.push(
         `${c.name} (${c.state}): ${approved} approved · ${touches.length} touches · ` +
           `${pct(touches.filter((m) => m.opens > 0).length, touches.length)} opened · ` +
@@ -395,12 +395,12 @@ async function scheduledReportsPass(userId: string) {
       touched++
     }
     if (touched === 0) continue
-    lines.push("", "— AutoGTM (opens by pixel, clicks by tracked links, opt-outs auto-suppressed)")
+    lines.push("", "- Jidout (opens by pixel, clicks by tracked links, opt-outs auto-suppressed)")
     await deliverOutreach({
       to: project.user.email,
-      fromName: "AutoGTM reports",
-      fromEmail: `reports@${project.companyDomain || "autogtm.local"}`,
-      subject: `AutoGTM weekly digest — ${project.companyName}`,
+      fromName: "Jidout reports",
+      fromEmail: `reports@${project.companyDomain || "jidout.local"}`,
+      subject: `Jidout weekly digest - ${project.companyName}`,
       text: lines.join("\n"),
     })
     await db.project.update({
@@ -523,7 +523,7 @@ async function autoPromotePass(projectIds: string[]) {
         copySubject: winner.subject,
         copyBody: winner.body,
         variantTest: false,
-        nextAction: `Variant ${winner.label} auto-promoted — ${Math.round(result.leaderRate * 100)}% vs ${Math.round(result.runnerRate * 100)}% reply rate (p=${result.pValue.toFixed(2)}), test closed`,
+        nextAction: `Variant ${winner.label} auto-promoted - ${Math.round(result.leaderRate * 100)}% vs ${Math.round(result.runnerRate * 100)}% reply rate (p=${result.pValue.toFixed(2)}), test closed`,
       },
     })
   }
@@ -580,28 +580,28 @@ async function advanceCampaign(
   if (!balanceOk) {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { nextAction: "Out of credits — top up billing to resume outreach" },
+      data: { nextAction: "Out of credits - top up billing to resume outreach" },
     })
     return
   }
   if (!monthlyOk) {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { nextAction: "Monthly cap reached — raise the cap in billing" },
+      data: { nextAction: "Monthly cap reached - raise the cap in billing" },
     })
     return
   }
   if (!dailyOk) {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { nextAction: `Daily budget reached (${campaign.dailyBudgetUsd} USD) — resumes next cycle` },
+      data: { nextAction: `Daily budget reached (${campaign.dailyBudgetUsd} USD) - resumes next cycle` },
     })
     return
   }
   if (capacity === 0) {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { nextAction: "No active sending domains — buy domains in the Domains tab" },
+      data: { nextAction: "No active sending domains - buy domains in the Domains tab" },
     })
     return
   }
@@ -671,14 +671,14 @@ async function advanceCampaign(
     const bodyTpl = variant?.body ?? campaign.copyBody ?? `Hi {{first_name}}, quick idea for {{company}}.`
     let body = fillCopy(bodyTpl, lead, campaign.project.senderName)
     if (isFollowup) {
-      body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox — happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
-      if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way — good luck with ${lead.company}!`
+      body = `Hi ${lead.name.split(" ")[0]}, just floating this back to the top of your inbox - happy to share how similar teams fixed "${lead.reasons || "this"}" with us.\n\nWorth 15 minutes?`
+      if (touchIndex >= campaign.maxTouches) body += `\n\nI'll close the loop on my end either way - good luck with ${lead.company}!`
     }
-    // tracked CTA link — appended to every email touch so clicks are measurable
+    // tracked CTA link - appended to every email touch so clicks are measurable
     const ctaUrl = campaign.ctaUrl && /^https?:\/\//i.test(campaign.ctaUrl) ? campaign.ctaUrl : null
     if (channel === "email" && ctaUrl) body += `\n\n${ctaUrl}`
 
-    // one-click unsubscribe token (RFC 8058) — created lazily per lead, mailed
+    // one-click unsubscribe token (RFC 8058) - created lazily per lead, mailed
     // in the List-Unsubscribe headers + opt-out footer of every email touch
     let unsubUrl: string | null = null
     if (channel === "email") {
@@ -716,7 +716,7 @@ async function advanceCampaign(
     if (channel === "email" && providerLive) {
       let fromEmail = campaign.project.companyDomain
         ? `hello@${campaign.project.companyDomain}`
-        : "hello@autogtm.local"
+        : "hello@jidout.local"
       const dom =
         (await db.sendingDomain.findFirst({
           where: { projectId: campaign.projectId, status: "active" },
@@ -769,7 +769,7 @@ async function advanceCampaign(
         },
       })
     } else if (linkedinLive) {
-      // real LinkedIn touch — DM shape: no subject, no unsubscribe footer.
+      // real LinkedIn touch - DM shape: no subject, no unsubscribe footer.
       // API failures are retryable (unlike an SMTP hard bounce) so the message
       // stays "sent" and only the deliveryStatus records the failure.
       const delivery = await deliverLinkedInTouch({
@@ -822,7 +822,7 @@ async function advanceCampaign(
     pulse.sent += emails
     pulse.spent += cost
 
-    // LinkedIn seat billing: once per month on first touch — never overdraw:
+    // LinkedIn seat billing: once per month on first touch - never overdraw:
     // if the balance can't cover the seats, LinkedIn touches fall back to email.
     if (linkedin > 0 && account.linkedinSeatBilledMonth !== monthStr()) {
       const seatCost = account.linkedinSeats * LINKEDIN_SEAT_PRICE_USD
@@ -841,14 +841,14 @@ async function advanceCampaign(
             type: "linkedin_seats",
             amountUsd: -seatCost,
             balanceAfter: fresh.prepaidBalanceUsd - seatCost,
-            description: `LinkedIn seats — ${account.linkedinSeats} seat${account.linkedinSeats === 1 ? "" : "s"} (${monthStr()})`,
+            description: `LinkedIn seats - ${account.linkedinSeats} seat${account.linkedinSeats === 1 ? "" : "s"} (${monthStr()})`,
           },
         })
       } else if (fresh) {
         await db.campaign.update({
           where: { id: campaign.id },
           data: {
-            nextAction: `LinkedIn seats not charged — balance below ${seatCost} USD; touches sent via email instead`,
+            nextAction: `LinkedIn seats not charged - balance below ${seatCost} USD; touches sent via email instead`,
           },
         })
       }
@@ -865,12 +865,12 @@ async function advanceCampaign(
   if (approvedLeads.length > 0 && done) {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { state: "completed", sendingNow: false, nextAction: "Campaign completed — review hot leads in the inbox" },
+      data: { state: "completed", sendingNow: false, nextAction: "Campaign completed - review hot leads in the inbox" },
     })
   } else {
     await db.campaign.update({
       where: { id: campaign.id },
-      data: { nextAction: "Sending — sequences running on schedule" },
+      data: { nextAction: "Sending - sequences running on schedule" },
     })
   }
 }
@@ -1035,20 +1035,20 @@ export async function campaignAction(campaignId: string, action: string) {
       }
       await db.campaign.update({
         where: { id: campaignId },
-        data: { state: "sending", sendingNow: true, nextAction: "Sending — sequences running on schedule" },
+        data: { state: "sending", sendingNow: true, nextAction: "Sending - sequences running on schedule" },
       })
       break
     }
     case "stop":
       await db.campaign.update({
         where: { id: campaignId },
-        data: { sendingNow: false, state: "paused", nextAction: "Paused — press Resume to continue" },
+        data: { sendingNow: false, state: "paused", nextAction: "Paused - press Resume to continue" },
       })
       break
     case "resume":
       await db.campaign.update({
         where: { id: campaignId },
-        data: { sendingNow: true, state: "sending", nextAction: "Sending — sequences running on schedule" },
+        data: { sendingNow: true, state: "sending", nextAction: "Sending - sequences running on schedule" },
       })
       break
     case "archive":
@@ -1060,7 +1060,7 @@ export async function campaignAction(campaignId: string, action: string) {
     case "unarchive":
       await db.campaign.update({
         where: { id: campaignId },
-        data: { state: "paused", nextAction: "Paused — press Resume to continue" },
+        data: { state: "paused", nextAction: "Paused - press Resume to continue" },
       })
       break
     default:
@@ -1103,7 +1103,7 @@ export async function manualReply(leadId: string, body: string) {
         direction: "in",
         channel: "email",
         kind: "reply",
-        body: `${slot} works — send the invite and I'll be there.`,
+        body: `${slot} works - send the invite and I'll be there.`,
         status: "sent",
       },
     })
@@ -1127,7 +1127,7 @@ export async function manualReply(leadId: string, body: string) {
         direction: "in",
         channel: "email",
         kind: "reply",
-        body: "Makes sense. One more thing — what does the rollout look like for a team our size, and who else typically needs to be involved?",
+        body: "Makes sense. One more thing - what does the rollout look like for a team our size, and who else typically needs to be involved?",
         status: "sent",
       },
     })
@@ -1143,7 +1143,7 @@ export async function manualReply(leadId: string, body: string) {
         direction: "in",
         channel: "email",
         kind: "reply",
-        body: "Thanks for the details — we're going to pass for now, but I'll keep you in mind.",
+        body: "Thanks for the details - we're going to pass for now, but I'll keep you in mind.",
         status: "sent",
       },
     })

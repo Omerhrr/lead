@@ -1,5 +1,5 @@
 #!/bin/bash
-# Browser gold path v3 — A/B test tab + delivery chip.
+# Browser gold path v3 - A/B test tab + delivery chip.
 set -u
 cd /home/z/my-project
 
@@ -63,7 +63,7 @@ sleep 2
 echo "--- variants area ---"
 agent-browser snapshot -c 2>/dev/null | rg -i 'split test|variant|promote|reply rate|testing' | head -16
 
-agent-browser screenshot /home/z/my-project/download/autogtm-ab-variants.png >/dev/null 2>&1
+agent-browser screenshot /home/z/my-project/download/jidout-ab-variants.png >/dev/null 2>&1
 echo "screenshot exit: $?"
 
 echo "--- console errors ---"

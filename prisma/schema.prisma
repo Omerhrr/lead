@@ -1,5 +1,5 @@
-// AutoGTM — reverse-engineered clone of explee.com ("app-auto-gtm")
-// Schema mirrors the API surface found in their OpenAPI 3.1 spec:
+// Jidout data model.
+// Covers the outreach surface: projects, campaigns, leads, messages, metering.
 // projects, campaigns (brief + lifecycle state machine), leads (pool/approved),
 // messages (touches + inbox conversations), sending domains (DomainPlan/BYOD),
 // billing (prepaid balance, caps, usage) and suppress lists.

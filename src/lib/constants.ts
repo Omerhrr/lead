@@ -1,5 +1,5 @@
-// Shared constants — client-safe (no server-only imports).
-// Pricing mirrors explee.com's published pay-as-you-go economics:
+// Shared constants - client-safe (no server-only imports).
+// Pay-as-you-go pricing:
 // $30 => 750 emails, median CPL ~$9, $10/1k database emails.
 
 export const TRIAL_CREDITS_USD = 30
@@ -12,7 +12,7 @@ export const EMAILS_PER_DOMAIN_DAY = 40
 // step by step (tick-advanced in the demo) until it reaches the full cap.
 export const WARM_START_EMAILS = 10
 export const WARM_STEP_EMAILS = 10
-// Scheduled campaign digest — demo-compressed "week" (real product: 7 days).
+// Scheduled campaign digest - demo-compressed "week" (real product: 7 days).
 export const REPORT_INTERVAL_MS = Number(process.env.REPORT_INTERVAL_MS || 120_000)
 export const LINKEDIN_SEAT_PRICE_USD = 29
 export const LINKEDIN_TOUCH_PRICE_USD = 0.12

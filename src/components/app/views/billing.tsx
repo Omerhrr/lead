@@ -74,7 +74,7 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-sm text-muted-foreground">
-          Pay-as-you-go credits — same economics as explee: {money(account.emailPriceUsd)} per email, no subscription.
+          Pay-as-you-go credits - {money(account.emailPriceUsd)} per email, no subscription.
         </p>
       </div>
 
@@ -141,7 +141,7 @@ export function BillingView({ onChanged }: { onChanged: () => Promise<void> | vo
               Save caps
             </Button>
             <p className="text-xs text-muted-foreground">
-              Campaigns pause automatically when a cap is hit — same as their monthly_cap_usd logic.
+              Campaigns pause automatically when a cap is hit - same as their monthly_cap_usd logic.
             </p>
           </CardContent>
         </Card>

@@ -4,7 +4,7 @@
 export const AB_MIN_SENDS = 8 // minimum sent leads per arm before testing
 export const AB_P_THRESHOLD = 0.1 // auto-promote when p drops below this
 
-// Abramowitz–Stegun erf approximation (|err| < 1.5e-7).
+// Abramowitz-Stegun erf approximation (|err| < 1.5e-7).
 function erf(x: number): number {
   const sign = x < 0 ? -1 : 1
   const ax = Math.abs(x)

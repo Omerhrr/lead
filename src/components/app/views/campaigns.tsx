@@ -240,7 +240,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   const blob = await res.blob()
                   const a = document.createElement("a")
                   a.href = URL.createObjectURL(blob)
-                  a.download = `autogtm-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.csv`
+                  a.download = `jidout-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.csv`
                   a.click()
                   URL.revokeObjectURL(a.href)
                   toast({ title: "Report exported", description: "Lead-level CSV with variants, opens, clicks and outcomes" })
@@ -267,7 +267,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   const blob = await res.blob()
                   const a = document.createElement("a")
                   a.href = URL.createObjectURL(blob)
-                  a.download = `autogtm-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.pdf`
+                  a.download = `jidout-report-${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}.pdf`
                   a.click()
                   URL.revokeObjectURL(a.href)
                   toast({ title: "PDF report exported", description: "One-page summary: funnel, split-test arms, tracked links" })
@@ -411,7 +411,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
               <div className="space-y-1.5">
                 <Label htmlFor="cp-cta" className="flex items-center gap-1.5">
                   <Link2 className="h-3 w-3 text-emerald-600" />
-                  CTA link (tracked — appended to every email touch, clicks measured)
+                  CTA link (tracked - appended to every email touch, clicks measured)
                 </Label>
                 <Input
                   id="cp-cta"
@@ -442,7 +442,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
               <div>
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <FlaskConical className="h-4 w-4 text-emerald-600" />
-                  Split test {campaign.variantTest ? "— testing live" : "— off"}
+                  Split test {campaign.variantTest ? "- testing live" : "- off"}
                 </div>
                 <p className="mt-1 max-w-xl text-xs text-muted-foreground">
                   Approved leads are split evenly across variants and keep their variant for the whole
@@ -452,13 +452,13 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                   <p className="mt-1.5 max-w-xl text-xs">
                     {campaign.splitTest.pValue !== null ? (
                       <span className={campaign.splitTest.significant ? "font-medium text-emerald-700" : "text-muted-foreground"}>
-                        Leader: {campaign.splitTest.leader} — {Math.round(campaign.splitTest.leaderRate * 100)}% vs{" "}
+                        Leader: {campaign.splitTest.leader} - {Math.round(campaign.splitTest.leaderRate * 100)}% vs{" "}
                         {Math.round(campaign.splitTest.runnerRate * 100)}% reply rate · p={campaign.splitTest.pValue.toFixed(2)}
-                        {campaign.splitTest.significant ? " · significant — ready to promote" : " · not yet significant"}
+                        {campaign.splitTest.significant ? " · significant - ready to promote" : " · not yet significant"}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">
-                        Collecting data — every arm needs ≥ {campaign.splitTest.minSends} sends before
+                        Collecting data - every arm needs ≥ {campaign.splitTest.minSends} sends before
                         the z-test kicks in
                       </span>
                     )}
@@ -477,7 +477,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                       try {
                         await patch(`/api/campaigns/${id}`, { addVariant: true })
                         await load()
-                        toast({ title: `Variant ${String.fromCharCode(65 + campaign.variants.length)} added — AI wrote a fresh angle` })
+                        toast({ title: `Variant ${String.fromCharCode(65 + campaign.variants.length)} added - AI wrote a fresh angle` })
                       } catch (e) {
                         toast({ title: "Could not add variant", description: e instanceof Error ? e.message : "Try again", variant: "destructive" })
                       } finally {
@@ -501,7 +501,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                         await load()
                         toast({
                           title: v
-                            ? "Auto-promote on — the significant winner takes over automatically"
+                            ? "Auto-promote on - the significant winner takes over automatically"
                             : "Auto-promote off",
                         })
                       } finally {
@@ -520,7 +520,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                     try {
                       await patch(`/api/campaigns/${id}`, { variantTest: v })
                       await load()
-                      toast({ title: v ? "A/B test enabled — variants A and B seeded from My copy" : "A/B test disabled" })
+                      toast({ title: v ? "A/B test enabled - variants A and B seeded from My copy" : "A/B test disabled" })
                     } finally {
                       setBusy(null)
                     }
@@ -596,10 +596,10 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                       {([
                         ["Leads", st.assigned],
                         ["Sent", st.sent],
-                        ["Opens", st.sent > 0 ? `${Math.round(st.openRate * 100)}%` : "—"],
-                        ["Clicks", st.sent > 0 ? `${Math.round(st.clickRate * 100)}%` : "—"],
+                        ["Opens", st.sent > 0 ? `${Math.round(st.openRate * 100)}%` : "-"],
+                        ["Clicks", st.sent > 0 ? `${Math.round(st.clickRate * 100)}%` : "-"],
                         ["Replies", st.replied],
-                        ["Reply rate", st.sent > 0 ? `${Math.round(st.replyRate * 100)}%` : "—"],
+                        ["Reply rate", st.sent > 0 ? `${Math.round(st.replyRate * 100)}%` : "-"],
                         ["Hot", st.hot],
                         ["Booked", st.booked],
                       ] as Array<[string, string | number]>).map(([k, val]) => (
@@ -754,7 +754,7 @@ function CampaignDetailPanel({ id, onChanged }: { id: string; onChanged: () => P
                     <span className="text-xs text-muted-foreground">
                       {delivery.configured
                         ? `First touches are delivered for real via ${delivery.provider}${delivery.fromEmail ? ` (from ${delivery.fromEmail})` : ""}`
-                        : "Set RESEND_API_KEY or SMTP_HOST to deliver for real — metering and autopilot keep running"}
+                        : "Set RESEND_API_KEY or SMTP_HOST to deliver for real - metering and autopilot keep running"}
                     </span>
                     {delivery.configured && (
                       <span className="flex items-center gap-1">

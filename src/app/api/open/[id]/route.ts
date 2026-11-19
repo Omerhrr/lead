@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
-// 1x1 transparent GIF — the open-tracking beacon.
+// 1x1 transparent GIF - the open-tracking beacon.
 // Email clients fetch <img src="BASE/api/open/<messageId>"> embedded in the
 // HTML part of every real send; each hit increments the message's open count.
 // No session auth (mail clients cannot authenticate); the messageId is an

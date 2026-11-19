@@ -6,7 +6,7 @@ import { explorerClusters, type MarketCluster } from "@/lib/ai"
 export const dynamic = "force-dynamic"
 export const maxDuration = 40
 
-// Segments Explorer — mirrors /tools/explorer: keywords → market clusters,
+// Segments Explorer - mirrors /tools/explorer: keywords → market clusters,
 // neighboring niches, TAM counts, plus counts from our own B2B database.
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()

@@ -43,11 +43,18 @@ async function main() {
     if (el) el.scrollIntoView({ block: "center" })
   })
   await page.waitForTimeout(400)
-  await page.screenshot({ path: `${OUT}/autogtm-round8-linkedin-api.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round8-linkedin-api.png`, fullPage: false })
   log("screenshot 1 saved (LinkedIn API chip in activity feed)")
 
   // ---- Team view: seed members (pending invite + active with seat) so the
   // audit trail has real rows, then capture the Activity log card
+  await page.evaluate(async () => {
+    // idempotent start: clear members left by previous runs (owner kept)
+    const d = await fetch("/api/team").then((r) => r.json())
+    for (const m of d.members.filter((x) => x.role !== "owner")) {
+      await fetch(`/api/team?id=${m.id}`, { method: "DELETE" })
+    }
+  })
   await page.evaluate(async () => {
     const inv = async (email, name, role) =>
       fetch("/api/team", {
@@ -74,7 +81,7 @@ async function main() {
   const teamBody = await page.evaluate(() => document.body.innerText)
   ok(teamBody.includes("Activity log"), "Activity log card present on Team view")
   ok(teamBody.includes("invited") && teamBody.includes("Jordan Blake"), "audit row: invite recorded")
-  ok(teamBody.includes("assigned a LinkedIn seat to Kate Lin"), "audit row: seat assignment recorded")
+  ok(teamBody.includes("assigned a LinkedIn seat to kate@brightpath.io"), "audit row: seat assignment recorded")
   ok(teamBody.includes("accepted invite"), "audit row: invite acceptance recorded")
   // scroll the Activity log card into view
   await page.evaluate(() => {
@@ -84,7 +91,7 @@ async function main() {
     if (el) el.scrollIntoView({ block: "center" })
   })
   await page.waitForTimeout(400)
-  await page.screenshot({ path: `${OUT}/autogtm-round8-audit.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round8-audit.png`, fullPage: false })
   log("screenshot 2 saved (workspace audit trail)")
 
   await browser.close()

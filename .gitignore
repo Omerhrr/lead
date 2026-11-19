@@ -37,8 +37,8 @@ yarn-error.log*
 # vercel
 .vercel
 
-# REA research scratch (captured site payloads — kept locally only, too large for git)
-explee_analysis/
+# local research scratch (captured site payloads - kept locally only, too large for git)
+rea_analysis/
 
 
 # typescript
@@ -56,3 +56,5 @@ prompt
 server.log
 # Skills directory
 /skills/
+# local-only rebrand research artifact
+download/REA_Research_Report.docx

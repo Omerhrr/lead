@@ -77,7 +77,7 @@ export async function GET(
   })
 
   const csv = [header.join(","), ...rows].join("\r\n")
-  const filename = `autogtm-report-${slug(campaign.name)}.csv`
+  const filename = `jidout-report-${slug(campaign.name)}.csv`
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

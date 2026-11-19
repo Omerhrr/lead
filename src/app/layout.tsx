@@ -14,15 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AutoGTM — 24/7 AI agent that finds clients while you sleep",
+  title: "Jidout - 24/7 AI agent that finds clients while you sleep",
   description:
-    "Reverse-engineered clone of explee.com's app-auto-gtm: AI finds high-intent prospects, writes personalized emails, follows up and books meetings — pay as you go.",
+    "AI finds high-intent prospects, writes personalized emails, follows up and books meetings - pay as you go.",
   keywords: ["AI outbound", "lead generation", "cold email", "autopilot", "GTM agent"],
-  authors: [{ name: "AutoGTM (REA clone build)" }],
+  authors: [{ name: "Jidout" }],
   openGraph: {
-    title: "AutoGTM — AI outbound autopilot",
+    title: "Jidout - AI outbound autopilot",
     description: "Get 1 to 3 hot leads in 24 hours free",
-    siteName: "AutoGTM",
+    siteName: "Jidout",
     type: "website",
   },
 };

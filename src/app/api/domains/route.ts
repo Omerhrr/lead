@@ -11,7 +11,7 @@ import {
 
 export const dynamic = "force-dynamic"
 
-// DomainPlan — the platform buys sending domains for rotation; BYOD supported.
+// DomainPlan - the platform buys sending domains for rotation; BYOD supported.
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return unauthorized()
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const cost = count * DOMAIN_PRICE_USD
     if (account.prepaidBalanceUsd < cost) {
       return Response.json(
-        { error: `Not enough credits — need ${cost} USD, balance ${account.prepaidBalanceUsd.toFixed(2)} USD` },
+        { error: `Not enough credits - need ${cost} USD, balance ${account.prepaidBalanceUsd.toFixed(2)} USD` },
         { status: 400 }
       )
     }
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         type: "domain_purchase",
         amountUsd: -cost,
         balanceAfter,
-        description: `Domain plan — ${count} sending domain${count === 1 ? "" : "s"} + ${count * MAILBOXES_PER_DOMAIN} mailboxes`,
+        description: `Domain plan - ${count} sending domain${count === 1 ? "" : "s"} + ${count * MAILBOXES_PER_DOMAIN} mailboxes`,
       },
     })
     return Response.json({ ok: true, bought: count, balanceAfter })

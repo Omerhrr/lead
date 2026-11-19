@@ -1,6 +1,6 @@
 // Pluggable email delivery hook.
 //
-// By default AutoGTM runs in simulation mode (the outreach engine is a
+// By default Jidout runs in simulation mode (the outreach engine is a
 // compressed-time demo driven by synthetic leads). When a real provider is
 // configured through env vars, every first-touch / follow-up email is handed
 // to that provider for actual delivery and the outcome is recorded on the

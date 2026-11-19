@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     autoReplyEnabled: body?.autoReplyEnabled !== false,
     autoReplyDelayMinutes: Number(body?.autoReplyDelayMinutes ?? 10),
     dailyBudgetUsd: Number(body?.dailyBudgetUsd ?? 30),
-    name: String(body?.name ?? `${project.companyName} — outbound`),
+    name: String(body?.name ?? `${project.companyName} - outbound`),
   }
 
   // AI stage 1: nl-to-filters

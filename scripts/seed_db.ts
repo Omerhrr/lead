@@ -64,7 +64,7 @@ async function main() {
         })
         personCount++
       } catch {
-        // duplicate email — skip
+        // duplicate email - skip
       }
     }
   }

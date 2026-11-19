@@ -32,14 +32,14 @@ async function main() {
   })
   await page.reload({ waitUntil: "domcontentloaded" })
   await page.waitForTimeout(2000)
-  // the SPA resets to Overview on full reload — navigate back to Domains
+  // the SPA resets to Overview on full reload - navigate back to Domains
   await page.getByRole("button", { name: "Domains", exact: true }).click()
   await page.waitForTimeout(1500)
   const domBody = await page.evaluate(() => document.body.innerText)
   const warmingRow = domBody.match(/warming day \d+ · \d+\/\d+ emails\/day/g)
   log("warming rows:", JSON.stringify(warmingRow))
   ok(warmingRow && warmingRow.length > 0, "warming progress row visible")
-  await page.screenshot({ path: `${OUT}/autogtm-round6-warming.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round6-warming.png`, fullPage: false })
   log("screenshot 1 saved (domains warming)")
 
   // ---- Overview: enable digest, fire one tick, screenshot the card
@@ -57,7 +57,7 @@ async function main() {
   await page.waitForTimeout(2500)
   const ovBody = await page.evaluate(() => document.body.innerText)
   ok(ovBody.includes("Weekly report digest"), "digest card present")
-  ok(/On — \d+ digests? sent/.test(ovBody), `digest fired: ${ovBody.match(/On — \d+ digests? sent[^•\n]*/)?.[0] ?? "?"}`)
+  ok(/On - \d+ digests? sent/.test(ovBody), `digest fired: ${ovBody.match(/On - \d+ digests? sent[^•\n]*/)?.[0] ?? "?"}`)
   await page.evaluate(() => {
     const el = [...document.querySelectorAll("*")].find(
       (x) => x.children.length === 0 && x.textContent?.trim() === "Weekly report digest"
@@ -65,7 +65,7 @@ async function main() {
     if (el) el.scrollIntoViewIfNeeded()
   })
   await page.waitForTimeout(300)
-  await page.screenshot({ path: `${OUT}/autogtm-round6-digest.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round6-digest.png`, fullPage: false })
   log("screenshot 2 saved (digest card)")
 
   // ---- Unsubscribe confirmation page (throwaway lead, cleaned up after)
@@ -82,7 +82,7 @@ async function main() {
   await page.waitForTimeout(800)
   const unBody = await page.evaluate(() => document.body.innerText)
   ok(unBody.includes("You won't hear from us again"), "confirmation page rendered")
-  await page.screenshot({ path: `${OUT}/autogtm-round6-unsubscribe.png`, fullPage: false })
+  await page.screenshot({ path: `${OUT}/jidout-round6-unsubscribe.png`, fullPage: false })
   log("screenshot 3 saved (unsubscribe page)")
   await db.lead.delete({ where: { id: visLead.id } })
   await db.suppressEntry.deleteMany({ where: { value: "visual-qa@round6-visual.example.com" } })
@@ -98,7 +98,7 @@ async function main() {
     await db.sendingDomain.delete({ where: { id: qa.id } })
   }
   if (qaDomains.length > 0) {
-    await db.creditTransaction.deleteMany({ where: { accountId: acct.id, description: { contains: "Domain plan — 1 sending domain" } } })
+    await db.creditTransaction.deleteMany({ where: { accountId: acct.id, description: { contains: "Domain plan - 1 sending domain" } } })
     await db.billingAccount.update({ where: { id: acct.id }, data: { prepaidBalanceUsd: acct.prepaidBalanceUsd + 12 * qaDomains.length } })
     log(`cleanup: ${qaDomains.length} visual domain(s) removed + refunded (digest left enabled)`)
   }

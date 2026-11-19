@@ -1,4 +1,4 @@
-// Simulated B2B database — stands in for Explee's "105M companies / 400M profiles".
+// Simulated B2B database backing the demo lead pool.
 // Structured per-industry so the nl-to-filters engine can match campaigns
 // against industries, titles, geographies and company sizes.
 

@@ -1,4 +1,4 @@
-// AI layer — replaces Explee's agent intelligence with z-ai LLM calls.
+// AI layer - lead scoring and campaign copy via z-ai LLM calls.
 // Backend-only (z-ai-web-dev-sdk). Every function has a deterministic
 // fallback so the engine never stalls if the LLM is unavailable.
 
@@ -103,7 +103,7 @@ export async function nlToFilters(brief: {
   }
 }
 
-// ---------- "My copy" — AI first-touch email ----------
+// ---------- "My copy" - AI first-touch email ----------
 
 export interface CampaignCopy {
   subject: string
@@ -140,12 +140,12 @@ export async function generateCampaignCopy(brief: {
   const kw = brief.keywords || brief.customerProblem
   return {
     subject: `${brief.offer.split(".")[0].slice(0, 6) || "Quick idea"} for {{company}}`,
-    body: `Hi {{first_name}},\n\nI noticed {{company}} — {{hook}}.\n\n${brief.offer} We solve exactly that: ${brief.customerProblem}\n\nWorth a quick look? I can send a 2-minute overview.\n\n{{sender_name}}`,
-    warnings: ["Generated from fallback template — regenerate for AI polish"],
+    body: `Hi {{first_name}},\n\nI noticed {{company}} - {{hook}}.\n\n${brief.offer} We solve exactly that: ${brief.customerProblem}\n\nWorth a quick look? I can send a 2-minute overview.\n\n{{sender_name}}`,
+    warnings: ["Generated from fallback template - regenerate for AI polish"],
   }
 }
 
-// ---------- A/B/C split-test arms — fresh angle for an added variant ----------
+// ---------- A/B/C split-test arms - fresh angle for an added variant ----------
 
 // Writes a DIFFERENT angle than the control copy so a new arm is a real test,
 // not a duplicate. Deterministic question-style fallback keeps the flow alive.
@@ -166,7 +166,7 @@ export async function generateVariantAlternative(ctx: {
   const subj = ctx.controlSubject.replace(/[.?!]+$/, "")
   return {
     subject: `quick question about ${subj}`.slice(0, 80),
-    body: `Hi {{first_name}} — quick question: does {{hook}} at {{company}} cost you deals today?\n\n${ctx.customerProblem} is what we fix, ${ctx.offer.toLowerCase()}\n\nOpen to a 15-minute look?\n\n{{sender_name}}`,
+    body: `Hi {{first_name}} - quick question: does {{hook}} at {{company}} cost you deals today?\n\n${ctx.customerProblem} is what we fix, ${ctx.offer.toLowerCase()}\n\nOpen to a 15-minute look?\n\n{{sender_name}}`,
   }
 }
 
@@ -189,10 +189,10 @@ export async function autopilotReply(ctx: {
   if (text) return text.trim()
   // fallbacks keep the engine alive without the LLM
   if (ctx.stage === "propose_meeting")
-    return `Great to hear, ${ctx.leadName.split(" ")[0]} — this is exactly what we built for ${ctx.leadCompany}. Would Thursday 10:00 or Friday 14:00 work for a quick 15-minute call?`
+    return `Great to hear, ${ctx.leadName.split(" ")[0]} - this is exactly what we built for ${ctx.leadCompany}. Would Thursday 10:00 or Friday 14:00 work for a quick 15-minute call?`
   if (ctx.stage === "confirm")
-    return `${ctx.slot || "That slot"} works perfectly — calendar invite is on its way. Looking forward to it!`
-  return `Good question. In short: ${ctx.customerProblem} — we handle it end to end, typically live within a week. Happy to walk you through it in 15 minutes if useful.`
+    return `${ctx.slot || "That slot"} works perfectly - calendar invite is on its way. Looking forward to it!`
+  return `Good question. In short: ${ctx.customerProblem} - we handle it end to end, typically live within a week. Happy to walk you through it in 15 minutes if useful.`
 }
 
 // ---------- Segments Explorer (mirrors /tools/explorer) ----------

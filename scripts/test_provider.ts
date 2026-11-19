@@ -6,8 +6,8 @@ const p = m.getEmailProvider()
 console.log("resolved provider:", p?.name)
 const r = await m.deliverOutreach({
   to: "sink@example.com",
-  fromName: "AutoGTM",
-  fromEmail: "autogtm@example.com",
+  fromName: "Jidout",
+  fromEmail: "jidout@example.com",
   subject: "provider test",
   text: "hello",
 })
@@ -18,13 +18,13 @@ m.resetProviderCache()
 process.env.RESEND_API_KEY = ""
 process.env.SMTP_HOST = "127.0.0.1"
 process.env.SMTP_PORT = "1025"
-process.env.SMTP_FROM = "autogtm@example.com"
+process.env.SMTP_FROM = "jidout@example.com"
 const p2 = m.getEmailProvider()
 console.log("resolved provider 2:", p2?.name)
 const r2 = await m.deliverOutreach({
   to: "sink@example.com",
-  fromName: "AutoGTM",
-  fromEmail: "autogtm@example.com",
+  fromName: "Jidout",
+  fromEmail: "jidout@example.com",
   subject: "smtp test",
   text: "hello via smtp",
 })

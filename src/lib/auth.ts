@@ -2,9 +2,9 @@ import { cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { FREEMAIL_DOMAINS, TRIAL_CREDITS_USD } from "@/lib/constants"
 
-export const SESSION_COOKIE = "agtm_uid"
+export const SESSION_COOKIE = "jidout_uid"
 
-// Mirrors Explee's "work emails only" registration gate.
+// Work-emails-only registration gate.
 export function isWorkEmail(email: string): boolean {
   const domain = email.split("@")[1]?.toLowerCase()
   if (!domain) return false

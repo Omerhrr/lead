@@ -1,6 +1,6 @@
-# AutoGTM production image (Next.js standalone output on Bun).
-# Build:  docker build -t autogtm .
-# Run:    docker run -p 3000:3000 --env-file .env -v autogtm-db:/app/db autogtm
+# Jidout production image (Next.js standalone output on Bun).
+# Build:  docker build -t jidout .
+# Run:    docker run -p 3000:3000 --env-file .env -v jidout-db:/app/db jidout
 
 FROM oven/bun:1 AS deps
 WORKDIR /app

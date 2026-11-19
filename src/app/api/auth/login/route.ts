@@ -20,9 +20,9 @@ export async function POST(req: NextRequest) {
 
   const viaLinkedin = !!body.viaLinkedin
   if (!viaLinkedin && !isWorkEmail(email)) {
-    // mirrors explee's "work emails only" registration gate
+    // work-emails-only registration gate
     return NextResponse.json(
-      { error: "Please use your work email — free providers (gmail, outlook...) can't register" },
+      { error: "Please use your work email - free providers (gmail, outlook...) can't register" },
       { status: 400 }
     )
   }

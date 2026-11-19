@@ -58,10 +58,10 @@ export async function GET(
   const replied = leads.filter((l) => inboundLeadIds.has(l.id)).length
   const hot = leads.filter((l) => l.isHot).length
   const booked = leads.filter((l) => l.convStatus === "booked").length
-  const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—")
+  const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "-")
 
   // ------------------------------------------------------------ build PDF
-  const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: `AutoGTM report — ${campaign.name}` } })
+  const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: `Jidout report - ${campaign.name}` } })
   const chunks: Buffer[] = []
   doc.on("data", (c: Buffer) => chunks.push(c))
   const rendered = new Promise<void>((res) => doc.on("end", () => res()))
@@ -70,7 +70,7 @@ export async function GET(
   let y = 0
 
   doc.font("Helvetica-Bold").fontSize(18).fillColor(INK)
-    .text("AutoGTM campaign report", 48, 48)
+    .text("Jidout campaign report", 48, 48)
   doc.font("Helvetica").fontSize(10).fillColor(MUTED)
     .text(`Generated ${new Date().toISOString().slice(0, 10)}`, 48, doc.y + 2)
   y = doc.y + 14
@@ -78,12 +78,12 @@ export async function GET(
   doc.font("Helvetica-Bold").fontSize(14).fillColor(INK).text(campaign.name, 48, y)
   doc.font("Helvetica").fontSize(9).fillColor(MUTED)
     .text(
-      `${campaign.project.companyName} · ${campaign.state} · target: ${campaign.targetRole || "—"} in ${campaign.targetGeography || "—"} (${campaign.targetCompanySize || "—"})`,
+      `${campaign.project.companyName} · ${campaign.state} · target: ${campaign.targetRole || "-"} in ${campaign.targetGeography || "-"} (${campaign.targetCompanySize || "-"})`,
       48, doc.y + 2, { width: W }
     )
   y = doc.y + 18
 
-  // funnel tiles — two rows of four
+  // funnel tiles - two rows of four
   const tiles: Array<[string, string]> = [
     ["Approved leads", String(approved)],
     ["Email touches", `${touches.length}${bounced > 0 ? ` (${bounced} bounced)` : ""}`],
@@ -164,7 +164,7 @@ export async function GET(
   }
   doc.font("Helvetica").fontSize(7.5).fillColor(MUTED)
     .text(
-      "AutoGTM — AI outbound agent · opens measured by tracking pixel, clicks by tracked CTA links, bounces auto-suppressed",
+      "Jidout - AI outbound agent · opens measured by tracking pixel, clicks by tracked CTA links, bounces auto-suppressed",
       48, doc.page.height - 60, { width: W }
     )
 
@@ -174,7 +174,7 @@ export async function GET(
   return new Response(Buffer.concat(chunks), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="autogtm-report-${slug(campaign.name)}.pdf"`,
+      "Content-Disposition": `attachment; filename="jidout-report-${slug(campaign.name)}.pdf"`,
       "Cache-Control": "no-store",
     },
   })

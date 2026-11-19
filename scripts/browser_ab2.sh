@@ -1,5 +1,5 @@
 #!/bin/bash
-# Browser gold path v2 — A/B test tab + delivery chip, with snapshot retries.
+# Browser gold path v2 - A/B test tab + delivery chip, with snapshot retries.
 set -u
 cd /home/z/my-project
 
@@ -59,7 +59,7 @@ sleep 2
 echo "--- variants area ---"
 agent-browser snapshot -c 2>/dev/null | rg -i "split test|variant A|variant B|promote|reply rate|testing live" | head -14
 
-agent-browser screenshot /home/z/my-project/download/autogtm-ab-variants.png >/dev/null 2>&1
+agent-browser screenshot /home/z/my-project/download/jidout-ab-variants.png >/dev/null 2>&1
 echo "screenshot exit: $?"
 
 echo "--- console errors ---"

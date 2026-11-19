@@ -95,7 +95,7 @@ export function Overview({
           <CardContent>
             {chartData.length === 0 ? (
               <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
-                No sends yet — approve a campaign and the agent will start working
+                No sends yet - approve a campaign and the agent will start working
               </div>
             ) : (
               <UsageAreaChart data={chartData} />
@@ -209,12 +209,12 @@ export function Overview({
             <div className="text-sm font-medium">Weekly report digest</div>
             <div className="text-xs text-muted-foreground">
               {data.report.cadence === "weekly"
-                ? `On — ${data.report.reportCount} digest${data.report.reportCount === 1 ? "" : "s"} sent${
+                ? `On - ${data.report.reportCount} digest${data.report.reportCount === 1 ? "" : "s"} sent${
                     data.report.lastReportAt
                       ? ` · last ${new Date(data.report.lastReportAt).toLocaleTimeString()}`
                       : " · first one fires on the next tick"
                   }`
-                : "Off — a funnel summary of every campaign, emailed to you weekly"}
+                : "Off - a funnel summary of every campaign, emailed to you weekly"}
             </div>
           </div>
           <Button

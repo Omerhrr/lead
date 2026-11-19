@@ -2,7 +2,7 @@
 # Round-8 QA pipeline: start dev server WITH the LinkedIn adapter env (Part B
 # of verify_round8 needs LINKEDIN_ACCESS_TOKEN + LINKEDIN_API_URL pointing at
 # the mock the suite itself hosts on :8788), run round 8 E2E + rounds 3-7
-# regression, then the quality gates — all inside one call so the server
+# regression, then the quality gates - all inside one call so the server
 # survives the whole block.
 set -u
 cd /home/z/my-project
@@ -64,7 +64,7 @@ if bunx eslint src; then echo "eslint clean"; else echo ">>> eslint FAILED"; fai
 step "dev.log errors"
 # NB: Next's startup banner lists disabled experiments with a leading ⨯
 # (e.g. "⨯ turbopackFileSystemCacheForDev" printed right before "✓ Starting...")
-# — that line is informational, so the gate ignores it.
+# - that line is informational, so the gate ignores it.
 if grep -iE "⨯|FATAL|panic" dev.log | grep -viE "turbopackFileSystemCacheForDev" | grep -q .; then
   grep -iE "⨯|FATAL|panic" dev.log | grep -viE "turbopackFileSystemCacheForDev" | head -3
   echo ">>> dev.log has errors"; fail=1
